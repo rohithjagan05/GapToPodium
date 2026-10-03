@@ -1,0 +1,28 @@
+# Secrets: never commit
+.env
+
+# Data: raw scrapes and page cache stay local; hand-built seeds are versioned
+data/*
+!data/seeds/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Later phases: dbt build output, MLflow runs
+target/
+dbt_packages/
+logs/
+mlruns/
+mlartifacts/
+
+# OS files
+Thumbs.db
+.DS_Store
