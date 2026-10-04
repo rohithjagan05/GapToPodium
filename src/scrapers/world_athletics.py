@@ -28,7 +28,7 @@ from bs4 import BeautifulSoup
 
 from src.config import RAW_DIR, SEEDS_DIR
 from src.events import wa_discipline_code
-from src.fetcher import Fetcher
+from src.fetcher import Fetcher, RetryableHTTPError
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +137,11 @@ def scrape_profiles(
             html = fetcher.get(url)
         except requests.HTTPError as exc:
             problems.append(_problem(seed, "profile not found", str(exc)))
+            continue
+        except RetryableHTTPError as exc:
+            if exc.status_code < 500:
+                raise  # still refused (202/429) after waiting: stop, and rerun later
+            problems.append(_problem(seed, "server error", str(exc)))
             continue
         data = extract_next_data(html)
         competitor = get_competitor(data)

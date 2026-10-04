@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 import requests
 
+from src.fetcher import RetryableHTTPError
 from src.scrapers import world_athletics as wa
 
 # Real field names and Neeraj Chopra's real values from his profile JSON (4 Oct 2026), trimmed.
@@ -28,15 +29,18 @@ def page(competitor: dict) -> str:
 
 
 class FakeFetcher:
-    def __init__(self, pages: dict[str, str]) -> None:
+    """Serves pages by URL; a URL mapped to an exception raises it; unknown URLs give a 404."""
+
+    def __init__(self, pages: dict) -> None:
         self.pages = pages
 
     def get(self, url: str) -> str:
         if url not in self.pages:
             raise requests.HTTPError(f"404 Client Error for url: {url}")
-        return self.pages[url]
-
-
+        value = self.pages[url]
+        if isinstance(value, Exception):
+            raise value
+        return value
 def url(wa_id: str) -> str:
     return wa.PROFILE_URL.format(wa_id=wa_id)
 
@@ -137,6 +141,22 @@ def test_scrape_profiles_flags_another_country(tmp_path):
     assert competitors == {}
     assert [(p["issue"], p["detail"]) for p in problems] == [("country is not IND", "PAK")]
 
+def test_persistent_server_error_is_recorded_and_the_run_continues(tmp_path):
+    seeds = [
+        wa.SeedAthlete("Broken Profile", "m", ("lj_m",), "9"),
+        wa.SeedAthlete("Neeraj Chopra", "m", ("jt_m",), "1"),
+    ]
+    fetcher = FakeFetcher({url("9"): RetryableHTTPError(url("9"), 500), url("1"): page(NEERAJ)})
+    competitors, problems = wa.scrape_profiles(seeds, fetcher, tmp_path)
+    assert set(competitors) == {"1"}
+    assert [(p["wa_id"], p["issue"]) for p in problems] == [("9", "server error")]
+
+
+def test_refusal_after_retries_stops_the_run(tmp_path):
+    seeds = [wa.SeedAthlete("Neeraj Chopra", "m", ("jt_m",), "1")]
+    fetcher = FakeFetcher({url("1"): RetryableHTTPError(url("1"), 202)})
+    with pytest.raises(RetryableHTTPError):
+        wa.scrape_profiles(seeds, fetcher, tmp_path)
 
 def test_disciplines_seen_counts_each_athlete_once():
     seen = wa.disciplines_seen({"1": NEERAJ})
