@@ -127,7 +127,45 @@ def test_800m_has_eight_finalists(eight_hundred):
 
 def test_800m_skipped_rounds_never_become_marks(eight_hundred):
     assert not any(r["mark_raw"] in olympedia.EMPTY_CELLS for r in eight_hundred)
+# --- 2024 women's 100 m hurdles (real page, no round columns) -------------
 
+
+@pytest.fixture(scope="module")
+def hurdles():
+    return olympedia.parse_standings(load("olympedia_2024_100mh_w.html"))
+
+
+def test_100mh_reads_all_40_athletes(hurdles):
+    assert len(hurdles) == 40
+
+
+def test_100mh_medallists_get_marks_from_round_tables(hurdles):
+    medallists = [r for r in hurdles if r["medal"]]
+    assert len(medallists) == 3
+    assert all(parse_mark(r["mark_raw"]) is not None for r in medallists)
+    gold = by_medal(hurdles, "Gold")
+    assert (gold["athlete_name"], gold["round_reached"]) == ("Masai Russell", "Final Round")
+    assert parse_mark(gold["mark_raw"]) == pytest.approx(12.33)
+
+
+def test_100mh_has_eight_finalists(hurdles):
+    assert sum(r["round_reached"] == "Final Round" for r in hurdles) == 8
+
+
+def test_100mh_heat_tables_are_not_treated_as_rounds(hurdles):
+    assert not any((r["round_reached"] or "").startswith("Heat") for r in hurdles)
+
+
+def test_100mh_yarraji_reached_the_repechage(hurdles):
+    row = next(r for r in hurdles if r["athlete_name"] == "Jyothi Yarraji")
+    assert row["round_reached"] == "Repêchage"
+    assert 12 < parse_mark(row["mark_raw"]) < 14
+
+def test_100mh_finalist_who_did_not_finish_still_reached_the_final(hurdles):
+    row = next(r for r in hurdles if r["athlete_name"] == "Ackera Nugent")
+    assert row["position_raw"] == "DNF final"
+    assert row["round_reached"] == "Final Round"
+    assert parse_mark(row["mark_raw"]) is None  # no fake time from the semi-final
 
 # --- positions and edge cases ------------------------------------------------
 
