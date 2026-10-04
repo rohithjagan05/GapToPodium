@@ -15,6 +15,7 @@ from src.fetcher import Fetcher
 FIXTURES_DIR = PROJECT_ROOT / "tests" / "fixtures"
 PAGES = {
     "wiki_worlds_2013.html": "https://en.wikipedia.org/wiki/2013_World_Championships_in_Athletics",
+    "wiki_worlds_2019.html": "https://en.wikipedia.org/wiki/2019_World_Athletics_Championships",
     "wiki_worlds_2023.html": "https://en.wikipedia.org/wiki/2023_World_Athletics_Championships",
 }
 

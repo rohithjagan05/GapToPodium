@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import re
 
-# Labels that annotate a mark without changing it: records and bests, optionally "equals" (=OR).
-_RECORD_TOKEN = re.compile(r"^=?(WR|OR|AR|CR|NR|ER|PB|SB|WL)$", re.IGNORECASE)
-# Stand-alone words that carry no value: a metres unit ("88.17 m") or a lone "=" before a label.
-_NOISE_TOKENS = {"m", "="}
+# Upper-case labels that annotate a mark without changing it: WR, =OR, PB, SB, WMR, WU20R...
+# Alone (DNF, NM, DQ) they leave no number, so the result is still None.
+_LABEL_TOKEN = re.compile(r"^=?[A-Z][A-Z0-9]*$")
+# Lower-case words that carry no value: metres, points, wind-assisted, a lone "=".
+_NOISE_TOKENS = {"m", "pts", "w", "="}
 # A single letter stuck to the end of a number: metres (m), hand-timed (h), altitude (A), wind (w).
 _ANNOTATION_SUFFIX = re.compile(r"(?<=\d)[mhAw]$")
 # Olympedia writes h:mm:ss with a hyphen after the hours: "2-07:00" means 2:07:00.
@@ -26,14 +27,18 @@ def parse_mark(text: str | None) -> float | None:
     """Return the mark as a float, or None if the text is not a valid mark.
 
     "10.62" -> 10.62, "1:43.03" -> 103.03, "2:06:26" or "2-06:26" -> 7586.0,
-    "8,909" -> 8909.0, "88.17 m" -> 88.17, "2.41 WL, CR, =NR" -> 2.41, "DNF" -> None
+    "8,909" or "9045 pts WR" -> points, "88.17 m" -> 88.17, "2.41 WL, CR, =NR" -> 2.41,
+    "4.65 m = NR 4.65 m" -> 4.65, "DNF" -> None
     """
     if text is None:
         return None
-    cleaned = re.sub(r"\(.*?\)", " ", str(text).replace("\xa0", " "))
+    # Drop wind readings "(+0.4)", place notes "(1 h3)" and footnote references "[47]".
+    cleaned = re.sub(r"\(.*?\)|\[.*?\]", " ", str(text).replace("\xa0", " "))
     # A label list like "WL, CR" leaves commas on the labels; strip those before matching.
     tokens = [t.rstrip(",") for t in cleaned.split()]
-    tokens = [t for t in tokens if t and t not in _NOISE_TOKENS and not _RECORD_TOKEN.match(t)]
+    tokens = [t for t in tokens if t and t not in _NOISE_TOKENS and not _LABEL_TOKEN.match(t)]
+    if len(tokens) > 1 and len(set(tokens)) == 1:
+        tokens = tokens[:1]  # the same mark repeated, e.g. once per tied athlete
     if len(tokens) != 1:
         return None
     token = _ANNOTATION_SUFFIX.sub("", tokens[0])

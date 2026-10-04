@@ -17,6 +17,14 @@ from src.marks import parse_mark
         ("2.41 WL, CR, =NR", 2.41),  # several labels joined by commas
         ("2.41 WL , CR , = NR", 2.41),  # the same, as get_text(" ") spaces it out
         ("43.74 WL, PB", 43.74),
+        ("9045 pts WR", 9045.0),  # combined-event points with a unit word
+        ("6669 pts", 6669.0),
+        ("8,909 pts", 8909.0),
+        ("9.92 SB , WMR", 9.92),  # a label not in any fixed list
+        ("2.04 m WU20R", 2.04),
+        ("12.06 w", 12.06),  # wind-assisted
+        ("4.65 m = NR 4.65 m", 4.65),  # the same mark once per tied athlete
+        ("13.30 [ 47 ]", 13.3),  # footnote reference
         ("1:59:40.2", 7180.2),  # h:mm:ss.x
         ("2-07:00", 7620.0),  # Olympedia's h-mm:ss style
         ("1-22:36", 4956.0),
@@ -62,6 +70,7 @@ def test_valid_marks(text, expected):
         "2-7:00",  # one-digit minutes is not a valid time
         "m",  # a unit alone is not a mark
         "=",
+        "13.18 13.30 [ 47 ]",  # two different marks: the scraper splits these per athlete
     ],
 )
 def test_invalid_marks_return_none(text):
