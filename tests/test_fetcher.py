@@ -183,7 +183,7 @@ def test_missing_email_stops_before_any_request(tmp_path, monkeypatch):
     assert session.calls == []
 
 
-# --- rate limiting (HTTP 429) ---------------------------------------------
+# --- rate limiting and refusals (HTTP 429 and 202) --------------------------
 
 
 @pytest.mark.parametrize(
@@ -231,3 +231,19 @@ def test_429_doubles_the_delay_for_that_host_only(tmp_path):
     assert clock.sleeps == [60.0, 4.0]
     assert fetcher.delay_for("www.olympedia.org") == 4.0
     assert fetcher.delay_for("worldathletics.org") == 2.0
+
+
+def test_202_challenge_page_is_retried_like_429_and_never_cached(tmp_path):
+    fetcher, _, clock = make_fetcher(
+        tmp_path, [FakeResponse(status_code=202, body="challenge"), FakeResponse(body="real page")]
+    )
+    assert fetcher.get(URL) == "real page"
+    assert clock.sleeps == [60.0]
+    assert fetcher.cache_path(URL).read_text(encoding="utf-8") == "real page"
+
+
+def test_other_success_codes_are_not_cached(tmp_path):
+    fetcher, _, _ = make_fetcher(tmp_path, [FakeResponse(status_code=203, body="odd")])
+    with pytest.raises(requests.HTTPError):
+        fetcher.get(URL)
+    assert not fetcher.cache_path(URL).exists()

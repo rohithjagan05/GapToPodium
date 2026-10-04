@@ -121,7 +121,8 @@ def test_scrape_profiles_saves_json_and_flags_problems(tmp_path):
     ]
     fetcher = FakeFetcher({url("1"): page(NEERAJ), url("2"): page(NEERAJ)})
     competitors, problems = wa.scrape_profiles(seeds, fetcher, tmp_path)
-    assert set(competitors) == {"1", "2"}
+    assert set(competitors) == {"1"}  # the mismatched profile is not used for marks
+    assert (tmp_path / "2.json").exists()  # but it is saved as evidence
     assert json.loads((tmp_path / "1.json").read_text(encoding="utf-8"))["props"]
     assert {(p["wa_id"], p["issue"]) for p in problems} == {
         ("2", "name mismatch"),
@@ -132,7 +133,8 @@ def test_scrape_profiles_saves_json_and_flags_problems(tmp_path):
 def test_scrape_profiles_flags_another_country(tmp_path):
     other = {**NEERAJ, "basicData": {**NEERAJ["basicData"], "countryCode": "PAK"}}
     seeds = [wa.SeedAthlete("Neeraj Chopra", "m", ("jt_m",), "1")]
-    _, problems = wa.scrape_profiles(seeds, FakeFetcher({url("1"): page(other)}), tmp_path)
+    competitors, problems = wa.scrape_profiles(seeds, FakeFetcher({url("1"): page(other)}), tmp_path)
+    assert competitors == {}
     assert [(p["issue"], p["detail"]) for p in problems] == [("country is not IND", "PAK")]
 
 

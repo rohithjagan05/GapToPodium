@@ -1,7 +1,8 @@
 """Polite page downloader: caches every page, waits between requests, retries temporary errors.
 
-If a site rate-limits us (HTTP 429), the fetcher honours its Retry-After header (or waits a
-minute and more), and doubles its delay for that site for the rest of the run.
+If a site rate-limits us (HTTP 429) or answers with a challenge page instead of content
+(HTTP 202), the fetcher honours its Retry-After header (or waits a minute and more), and doubles
+its delay for that site for the rest of the run. Only HTTP 200 pages are ever cached.
 """
 
 from __future__ import annotations
@@ -20,9 +21,13 @@ from src import config
 
 logger = logging.getLogger(__name__)
 
+# 429 = rate limited. 202 = "accepted" with a challenge page instead of content, which
+# worldathletics.org started sending after about 22 requests on 5 Oct 2026.
+REFUSAL_CODES = (202, 429)
+
 
 class RetryableHTTPError(Exception):
-    """A temporary server response (429 or 5xx) worth trying again."""
+    """A temporary server response (202, 429 or 5xx) worth trying again."""
 
     def __init__(self, url: str, status_code: int, retry_after: float | None = None) -> None:
         super().__init__(f"HTTP {status_code} for {url}")
@@ -80,7 +85,7 @@ class Fetcher:
         return self.cache_dir / host / f"{digest}.html"
 
     def delay_for(self, host: str) -> float:
-        """Current minimum gap between requests to this host (grows after a 429)."""
+        """Current minimum gap between requests to this host (grows after a refusal)."""
         return self._delay_by_host.get(host, self.delay_seconds)
 
     def get(self, url: str, refresh: bool = False) -> str:
@@ -114,7 +119,7 @@ class Fetcher:
         """Seconds to wait before the next attempt."""
         exc = retry_state.outcome.exception() if retry_state.outcome else None
         attempt = retry_state.attempt_number
-        if isinstance(exc, RetryableHTTPError) and exc.status_code == 429:
+        if isinstance(exc, RetryableHTTPError) and exc.status_code in REFUSAL_CODES:
             if exc.retry_after is not None:
                 return min(exc.retry_after, self.max_wait_seconds)
             return min(self.rate_limit_wait_seconds * attempt, self.max_wait_seconds)
@@ -130,17 +135,19 @@ class Fetcher:
             self._last_request_at[host] = self._clock()
         logger.info("GET %s -> %s", url, response.status_code)
 
-        if response.status_code == 429:
+        if response.status_code in REFUSAL_CODES:
             header = response.headers.get("Retry-After")
             self._slow_down(host)
             logger.warning(
-                "%s rate-limited us (429, Retry-After=%r); now %.0f s between its requests",
-                host, header, self.delay_for(host),
+                "%s refused the request (%s, Retry-After=%r); now %.0f s between its requests",
+                host, response.status_code, header, self.delay_for(host),
             )  # fmt: skip
-            raise RetryableHTTPError(url, 429, parse_retry_after(header))
+            raise RetryableHTTPError(url, response.status_code, parse_retry_after(header))
         if response.status_code >= 500:
             raise RetryableHTTPError(url, response.status_code)
         response.raise_for_status()  # other 4xx errors (e.g. 404) fail at once, no retry
+        if response.status_code != 200:
+            raise requests.HTTPError(f"unexpected HTTP {response.status_code} for {url}; not cached")
         return response.content
 
     def _slow_down(self, host: str) -> None:

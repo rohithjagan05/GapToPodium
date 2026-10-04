@@ -145,13 +145,17 @@ def scrape_profiles(
             continue
         path = out_dir / f"{seed.wa_id}.json"
         path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        competitors[seed.wa_id] = competitor
         name = profile_name(competitor)
-        if not names_match(seed.name, name):
-            problems.append(_problem(seed, "name mismatch", name))
         country = (competitor.get("basicData") or {}).get("countryCode")
+        issues = []
+        if not names_match(seed.name, name):
+            issues.append(_problem(seed, "name mismatch", name))
         if country != "IND":
-            problems.append(_problem(seed, "country is not IND", str(country)))
+            issues.append(_problem(seed, "country is not IND", str(country)))
+        problems.extend(issues)
+        if issues:
+            continue  # saved as evidence, but a profile that fails a check never feeds marks
+        competitors[seed.wa_id] = competitor
     return competitors, problems
 
 
