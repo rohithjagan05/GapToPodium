@@ -12,6 +12,11 @@ from src.marks import parse_mark
         ("3:26.00", 206.0),
         ("27:43.22", 1663.22),
         ("2:06:26", 7586.0),  # h:mm:ss
+        ("88.17 m", 88.17),  # Wikipedia: unit as a separate word
+        ("65.47 m AR", 65.47),
+        ("2.41 WL, CR, =NR", 2.41),  # several labels joined by commas
+        ("2.41 WL , CR , = NR", 2.41),  # the same, as get_text(" ") spaces it out
+        ("43.74 WL, PB", 43.74),
         ("1:59:40.2", 7180.2),  # h:mm:ss.x
         ("2-07:00", 7620.0),  # Olympedia's h-mm:ss style
         ("1-22:36", 4956.0),
@@ -55,6 +60,8 @@ def test_valid_marks(text, expected):
         "10.62 9.88",  # two numbers: unclear which is the mark
         ":43.03",  # missing minutes
         "2-7:00",  # one-digit minutes is not a valid time
+        "m",  # a unit alone is not a mark
+        "=",
     ],
 )
 def test_invalid_marks_return_none(text):

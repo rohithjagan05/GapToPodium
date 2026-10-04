@@ -120,3 +120,67 @@ def is_excluded(name: str) -> bool:
     """True for names we skip on purpose (e.g. exhibition races), so they are not flagged."""
     parts = _split_name(name)
     return parts is not None and parts[0] in EXCLUDED_NAMES
+
+# --- World Championships (Wikipedia medal summaries) ------------------------------------
+# Wikipedia event name without "Men's " / "Women's " / "Mixed " -> the same discipline codes,
+# so jt_m means the same event in Olympedia and Worlds data. Built from the real names on
+# the 2013-2025 championship pages (checked 4 Oct 2026).
+WIKI_WORLDS_NAMES: dict[str, str] = {
+    "100 metres": "100m",
+    "200 metres": "200m",
+    "400 metres": "400m",
+    "800 metres": "800m",
+    "1500 metres": "1500m",
+    "5000 metres": "5000m",
+    "10,000 metres": "10000m",
+    "marathon": "marathon",
+    "110 metres hurdles": "110mh",
+    "100 metres hurdles": "100mh",
+    "400 metres hurdles": "400mh",
+    "3000 metres steeplechase": "3000msc",
+    "20 kilometres walk": "20kmw",
+    "50 kilometres walk": "50kmw",
+    "high jump": "hj",
+    "pole vault": "pv",
+    "long jump": "lj",
+    "triple jump": "tj",
+    "shot put": "sp",
+    "discus throw": "dt",
+    "hammer throw": "ht",
+    "javelin throw": "jt",
+    "decathlon": "dec",
+    "heptathlon": "hep",
+    "4 × 100 metres relay": "4x100m",
+    "4 × 400 metres relay": "4x400m",
+}
+
+# Full names on the Worlds pages that are not Olympic events: skipped without a warning.
+WIKI_WORLDS_EXCLUDED: set[str] = {
+    "Men's 35 kilometres walk",  # Worlds only, 2022 onwards
+    "Women's 35 kilometres walk",
+    "Women's 50 kilometres walk",  # Worlds only (2017, 2019); never an Olympic event
+    "Men's masters 800 metres",  # 2015 exhibition races
+    "Women's masters 400 metres",
+    "World Team",  # 2022 row that is not an event
+}
+
+_WORLDS_SEXES = {"Men's": "m", "Women's": "w", "Mixed": "x"}
+
+
+def parse_worlds_event_name(name: str) -> Event | None:
+    """"Men's javelin throw" -> Event(key='jt_m', ...); None for unknown or excluded names."""
+    cleaned = " ".join(name.split())
+    if cleaned in WIKI_WORLDS_EXCLUDED:
+        return None
+    sex_word, _, base = cleaned.partition(" ")
+    sex = _WORLDS_SEXES.get(sex_word)
+    discipline = WIKI_WORLDS_NAMES.get(base)
+    if sex is None or discipline is None:
+        return None
+    group, higher_is_better = DISCIPLINES[discipline]
+    return Event(f"{discipline}_{sex}", discipline, sex, group, higher_is_better)
+
+
+def is_worlds_excluded(name: str) -> bool:
+    """True for Worlds names skipped on purpose (non-Olympic events), so they are not flagged."""
+    return " ".join(name.split()) in WIKI_WORLDS_EXCLUDED

@@ -10,6 +10,8 @@ import re
 
 # Labels that annotate a mark without changing it: records and bests, optionally "equals" (=OR).
 _RECORD_TOKEN = re.compile(r"^=?(WR|OR|AR|CR|NR|ER|PB|SB|WL)$", re.IGNORECASE)
+# Stand-alone words that carry no value: a metres unit ("88.17 m") or a lone "=" before a label.
+_NOISE_TOKENS = {"m", "="}
 # A single letter stuck to the end of a number: metres (m), hand-timed (h), altitude (A), wind (w).
 _ANNOTATION_SUFFIX = re.compile(r"(?<=\d)[mhAw]$")
 # Olympedia writes h:mm:ss with a hyphen after the hours: "2-07:00" means 2:07:00.
@@ -24,12 +26,14 @@ def parse_mark(text: str | None) -> float | None:
     """Return the mark as a float, or None if the text is not a valid mark.
 
     "10.62" -> 10.62, "1:43.03" -> 103.03, "2:06:26" or "2-06:26" -> 7586.0,
-    "8,909" -> 8909.0, "DNF" -> None
+    "8,909" -> 8909.0, "88.17 m" -> 88.17, "2.41 WL, CR, =NR" -> 2.41, "DNF" -> None
     """
     if text is None:
         return None
     cleaned = re.sub(r"\(.*?\)", " ", str(text).replace("\xa0", " "))
-    tokens = [t for t in cleaned.split() if not _RECORD_TOKEN.match(t)]
+    # A label list like "WL, CR" leaves commas on the labels; strip those before matching.
+    tokens = [t.rstrip(",") for t in cleaned.split()]
+    tokens = [t for t in tokens if t and t not in _NOISE_TOKENS and not _RECORD_TOKEN.match(t)]
     if len(tokens) != 1:
         return None
     token = _ANNOTATION_SUFFIX.sub("", tokens[0])
