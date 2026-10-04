@@ -1,7 +1,7 @@
 import pytest
 import requests
 
-from src.fetcher import Fetcher, RetryableHTTPError
+from src.fetcher import Fetcher, RetryableHTTPError, parse_retry_after
 
 URL = "https://www.olympedia.org/results/123"
 SAME_HOST_URL = "https://www.olympedia.org/results/456"
@@ -9,9 +9,10 @@ OTHER_HOST_URL = "https://worldathletics.org/athletes/example"
 
 
 class FakeResponse:
-    def __init__(self, status_code: int = 200, body: str = "<html>ok</html>") -> None:
+    def __init__(self, status_code: int = 200, body: str = "<html>ok</html>", headers=None) -> None:
         self.status_code = status_code
         self.content = body.encode("utf-8")
+        self.headers = headers or {}
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
@@ -180,3 +181,53 @@ def test_missing_email_stops_before_any_request(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="CONTACT_EMAIL"):
         fetcher.get(URL)
     assert session.calls == []
+
+
+# --- rate limiting (HTTP 429) ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("120", 120.0), ("0", 0.0), ("Wed, 21 Oct 2026 07:28:00 GMT", None), (None, None), ("-5", None)],
+)
+def test_parse_retry_after(value, expected):
+    assert parse_retry_after(value) == expected
+
+
+def test_429_waits_for_retry_after(tmp_path):
+    fetcher, _, clock = make_fetcher(
+        tmp_path, [FakeResponse(status_code=429, headers={"Retry-After": "17"}), FakeResponse()]
+    )
+    fetcher.get(URL)
+    assert clock.sleeps == [17.0]
+
+
+def test_429_without_retry_after_waits_a_minute(tmp_path):
+    fetcher, _, clock = make_fetcher(tmp_path, [FakeResponse(status_code=429), FakeResponse()])
+    fetcher.get(URL)
+    assert clock.sleeps == [60.0]
+
+
+def test_429_retry_after_is_capped(tmp_path):
+    fetcher, _, clock = make_fetcher(
+        tmp_path, [FakeResponse(status_code=429, headers={"Retry-After": "9999"}), FakeResponse()]
+    )
+    fetcher.get(URL)
+    assert clock.sleeps == [600.0]
+
+
+def test_server_error_keeps_short_retry(tmp_path):
+    fetcher, _, clock = make_fetcher(tmp_path, [FakeResponse(status_code=503), FakeResponse()])
+    fetcher.get(URL)
+    assert clock.sleeps == [2.0]
+
+
+def test_429_doubles_the_delay_for_that_host_only(tmp_path):
+    fetcher, _, clock = make_fetcher(
+        tmp_path, [FakeResponse(status_code=429), FakeResponse(), FakeResponse()]
+    )
+    fetcher.get(URL)  # 429, waits 60 s, then succeeds
+    fetcher.get(SAME_HOST_URL)  # now waits 4 s instead of 2 s
+    assert clock.sleeps == [60.0, 4.0]
+    assert fetcher.delay_for("www.olympedia.org") == 4.0
+    assert fetcher.delay_for("worldathletics.org") == 2.0

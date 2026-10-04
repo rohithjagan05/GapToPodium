@@ -12,6 +12,8 @@ import re
 _RECORD_TOKEN = re.compile(r"^=?(WR|OR|AR|CR|NR|ER|PB|SB|WL)$", re.IGNORECASE)
 # A single letter stuck to the end of a number: metres (m), hand-timed (h), altitude (A), wind (w).
 _ANNOTATION_SUFFIX = re.compile(r"(?<=\d)[mhAw]$")
+# Olympedia writes h:mm:ss with a hyphen after the hours: "2-07:00" means 2:07:00.
+_HOUR_HYPHEN = re.compile(r"^(\d+)-(?=\d{2}:\d{2})")
 _PLAIN_NUMBER = re.compile(r"^\d+(\.\d+)?$")
 _THOUSANDS = re.compile(r"^\d{1,3}(,\d{3})+$")
 _CLOCK_PART = re.compile(r"^\d{1,2}$")
@@ -21,7 +23,8 @@ _SECONDS_PART = re.compile(r"^\d{1,2}(\.\d+)?$")
 def parse_mark(text: str | None) -> float | None:
     """Return the mark as a float, or None if the text is not a valid mark.
 
-    "10.62" -> 10.62, "1:43.03" -> 103.03, "2:06:26" -> 7586.0, "8,909" -> 8909.0, "DNF" -> None
+    "10.62" -> 10.62, "1:43.03" -> 103.03, "2:06:26" or "2-06:26" -> 7586.0,
+    "8,909" -> 8909.0, "DNF" -> None
     """
     if text is None:
         return None
@@ -30,6 +33,7 @@ def parse_mark(text: str | None) -> float | None:
     if len(tokens) != 1:
         return None
     token = _ANNOTATION_SUFFIX.sub("", tokens[0])
+    token = _HOUR_HYPHEN.sub(r"\1:", token)
 
     if _PLAIN_NUMBER.match(token):
         return round(float(token), 3)

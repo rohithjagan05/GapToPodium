@@ -13,6 +13,9 @@ from src.marks import parse_mark
         ("27:43.22", 1663.22),
         ("2:06:26", 7586.0),  # h:mm:ss
         ("1:59:40.2", 7180.2),  # h:mm:ss.x
+        ("2-07:00", 7620.0),  # Olympedia's h-mm:ss style
+        ("1-22:36", 4956.0),
+        ("2-06:26 (1)", 7586.0),
         ("8.34", 8.34),  # metres
         ("8.34m", 8.34),
         ("89.45", 89.45),
@@ -51,6 +54,7 @@ def test_valid_marks(text, expected):
         "abc",
         "10.62 9.88",  # two numbers: unclear which is the mark
         ":43.03",  # missing minutes
+        "2-7:00",  # one-digit minutes is not a valid time
     ],
 )
 def test_invalid_marks_return_none(text):
