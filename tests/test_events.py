@@ -3,11 +3,13 @@ import pytest
 from src.events import (
     DISCIPLINES,
     OLYMPEDIA_NAMES,
+    WA_PROFILE_NAMES,
     WIKI_WORLDS_EXCLUDED,
     is_excluded,
     is_worlds_excluded,
     parse_event_name,
     parse_worlds_event_name,
+    wa_discipline_code,
 )
 
 # Every medal-event name seen on Olympedia's 2024 and 2000 athletics pages, both spellings.
@@ -144,3 +146,37 @@ def test_worlds_exclusions_are_real_names():
     assert WIKI_WORLDS_EXCLUDED <= set(REAL_WORLDS_NAMES)
     assert parse_worlds_event_name("Women's 50 kilometres walk") is None
     assert parse_worlds_event_name("Men's 50 kilometres walk").key == "50kmw_m"
+
+# --- World Athletics profile names (real list from 10 Indian profiles, 5 Oct 2026) ----
+
+REAL_WA_NAMES = [
+    "10 Kilometres Race Walk", "10 Kilometres Road", "10,000 Metres", "10,000 Metres Race Walk",
+    "100 Metres", "100 Metres Hurdles", "100 Metres Hurdles (76.2cm)", "1000 Metres",
+    "1000 Metres Short Track", "110 Metres Hurdles", "1500 Metres", "20 Kilometres Race Walk",
+    "20,000 Metres Race Walk", "200 Metres", "25 Kilometres Road", "30 Kilometres Race Walk",
+    "3000 Metres", "3000 Metres Short Track", "3000 Metres Steeplechase",
+    "35 Kilometres Race Walk", "400 Metres", "400 Metres Hurdles", "4x100 Metres Relay",
+    "4x100 Metres Relay Mixed", "4x400 Metres Relay", "4x400 Metres Relay Mixed",
+    "4x400 Metres Relay Short Track", "5000 Metres", "5000 Metres Race Walk",
+    "5000 Metres Short Track", "60 Metres", "60 Metres Hurdles", "Decathlon", "Discus Throw",
+    "Half Marathon", "Heptathlon Short Track", "High Jump", "Javelin Throw",
+    "Javelin Throw (700g)", "Long Jump", "Marathon Race Walk", "Mile", "Pole Vault", "Shot Put",
+    "Triple Jump",
+]  # fmt: skip
+
+
+def test_wa_names_map_only_senior_olympic_disciplines():
+    mapped = {n: wa_discipline_code(n) for n in REAL_WA_NAMES if wa_discipline_code(n)}
+    assert mapped == {
+        "10,000 Metres": "10000m", "100 Metres": "100m", "100 Metres Hurdles": "100mh",
+        "110 Metres Hurdles": "110mh", "1500 Metres": "1500m",
+        "20 Kilometres Race Walk": "20kmw", "200 Metres": "200m",
+        "3000 Metres Steeplechase": "3000msc", "400 Metres": "400m",
+        "400 Metres Hurdles": "400mh", "5000 Metres": "5000m", "Decathlon": "dec",
+        "Discus Throw": "dt", "High Jump": "hj", "Javelin Throw": "jt", "Long Jump": "lj",
+        "Pole Vault": "pv", "Shot Put": "sp", "Triple Jump": "tj",
+    }  # fmt: skip
+
+
+def test_wa_codes_are_known_disciplines():
+    assert set(WA_PROFILE_NAMES.values()) <= set(DISCIPLINES)

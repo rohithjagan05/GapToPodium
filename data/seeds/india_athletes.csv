@@ -2,17 +2,17 @@ athlete_name,sex,events,last_olympics,olympedia_athlete_id,wa_id,notes
 Abdulla Aboobacker,m,tj_m,2024,150098,,
 Akshdeep Singh,m,20kmw_m,2024,150099,,
 Ankita Dhyani,w,5000m_w,2024,150091,,
-Annu Rani Dharayan,w,jt_w,2024,143718,,
-Avinash Sable,m,3000msc_m,2024,143751,,
+Annu Rani Dharayan,w,jt_w,2024,143718,14422692,
+Avinash Sable,m,3000msc_m,2024,143751,14778911,
 Jeswin Aldrin,m,lj_m,2024,150100,,
-Jyothi Yarraji,w,100mh_w,2024,150092,,
+Jyothi Yarraji,w,100mh_w,2024,150092,14734731,
 Kishore Jena,m,jt_m,2024,150101,,
-Neeraj Chopra,m,jt_m,2024,143754,,
-Pahal Kiran,w,400m_w,2024,150094,,
+Neeraj Chopra,m,jt_m,2024,143754,14549089,
+Pahal Kiran,w,400m_w,2024,150094,14995337,
 Paramjeet Singh Bisht,m,20kmw_m,2024,150104,,
 Parul Chaudhary,w,3000msc_w;5000m_w,2024,150095,,
 Praveen Chithravel,m,tj_m,2024,2503204,,
-Priyanka,w,20kmw_w,2024,143723,,
+Priyanka,w,20kmw_w,2024,143723,14477764,
 Sarvesh Anil Kushare,m,hj_m,2024,150107,,
 Tajinderpal Singh Toor,m,sp_m,2024,143760,,
 Vikash Singh,m,20kmw_m,2024,150108,,
@@ -22,7 +22,7 @@ Gurpreet Singh,m,50kmw_m,2020,143721,,
 Irfan Kolothum Thodi,m,20kmw_m,2020,120170,,
 Jabir Madari Palliyalil,m,400mh_m,2020,143752,,
 Kamalpreet Kaur,w,dt_w,2020,143722,,
-Murali Sreeshankar,m,lj_m,2020,143759,,
+Murali Sreeshankar,m,lj_m,2020,143759,14734673,
 Rohilla,m,20kmw_m,2020,143756,,
 Sandeep Kumar,m,20kmw_m;50kmw_m,2020,134432,,
 Seema Antil,w,dt_w,2020,104937,,
@@ -48,11 +48,11 @@ Sudha Singh,w,3000msc_w,2016,121464,,
 Thonakal Gopi,m,marathon_m,2016,134422,,
 Tintu Luka,w,800m_w,2016,121465,,
 Vikas Gowda,m,dt_m,2016,105716,,
-Animesh Kujur,m,100m_m;200m_m,,,,added by hand: promising athlete (user's list)
+Animesh Kujur,m,100m_m;200m_m,,,14971002,added by hand: promising athlete (user's list)
 Gurindervir Singh,m,100m_m;200m_m,,,,added by hand: promising athlete (user's list)
 Haritha Bhadra,w,100m_w;200m_w,,,,added by hand: Asian Games 2026 individual medallist; confirm spelling on WA
 Abinaya Rajarajan,w,100m_w;200m_w,,,,added by hand: promising athlete (user's list)
-Gulveer Singh,m,10000m_m;1500m_m;5000m_m,,,,added by hand: Asian Games 2026 individual medallist
+Gulveer Singh,m,10000m_m;1500m_m;5000m_m,,,15023839,added by hand: Asian Games 2026 individual medallist
 Vishal Thennarasu,m,400m_m,,,,added by hand: promising athlete (user's list); confirm spelling on WA
 Ancy Sojan,w,lj_w,,,,added by hand: Asian Games 2026 individual medallist
 Vithya Ramraj,w,400mh_w,,,,added by hand: Asian Games 2026 individual medallist
@@ -61,7 +61,7 @@ Yash Vir Singh,m,jt_m,,,,added by hand: Asian Games 2026 individual medallist
 Seema Kumari,w,10000m_w,,,,added by hand: Asian Games 2026 individual medallist
 Baranica Elangovan,w,pv_w,,,,added by hand: Asian Games 2026 individual medallist
 Prachi Choudhary,w,400m_w,,,,added by hand: Asian Games 2026 individual medallist
-Tejaswin Shankar,m,dec_m,,,,added by hand: Asian Games 2026 individual medallist
+Tejaswin Shankar,m,dec_m,,,14714481,added by hand: Asian Games 2026 individual medallist
 Rohit Yadav,m,jt_m,,,,added by hand: Asian Games 2026 individual medallist
 Pooja Singh,w,hj_w,,,,added by hand: Asian Games 2026 individual medallist
 M.R. Poovamma,w,400m_w,,,,added by hand: Asian Games 2026 relay medallist

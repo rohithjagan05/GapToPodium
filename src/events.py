@@ -184,3 +184,42 @@ def parse_worlds_event_name(name: str) -> Event | None:
 def is_worlds_excluded(name: str) -> bool:
     """True for Worlds names skipped on purpose (non-Olympic events), so they are not flagged."""
     return " ".join(name.split()) in WIKI_WORLDS_EXCLUDED
+
+# --- World Athletics profiles ------------------------------------------------------------
+# Discipline names on athlete profiles -> the same discipline codes. Only senior Olympic
+# disciplines are mapped; everything else is ignored on purpose: indoor events ("60 Metres",
+# anything "Short Track"), junior implements ("Javelin Throw (700g)", "(76.2cm)" hurdles),
+# road races, relays and non-Olympic distances. The profile's own "indoor" flag is not reliable.
+# Checked on 10 Indian profiles (5 Oct 2026); the five marked "unconfirmed" follow the same
+# naming pattern but did not appear in those profiles yet.
+WA_PROFILE_NAMES: dict[str, str] = {
+    "100 Metres": "100m",
+    "200 Metres": "200m",
+    "400 Metres": "400m",
+    "800 Metres": "800m",  # unconfirmed
+    "1500 Metres": "1500m",
+    "5000 Metres": "5000m",
+    "10,000 Metres": "10000m",
+    "Marathon": "marathon",  # unconfirmed
+    "110 Metres Hurdles": "110mh",
+    "100 Metres Hurdles": "100mh",
+    "400 Metres Hurdles": "400mh",
+    "3000 Metres Steeplechase": "3000msc",
+    "20 Kilometres Race Walk": "20kmw",
+    "50 Kilometres Race Walk": "50kmw",  # unconfirmed
+    "High Jump": "hj",
+    "Pole Vault": "pv",
+    "Long Jump": "lj",
+    "Triple Jump": "tj",
+    "Shot Put": "sp",
+    "Discus Throw": "dt",
+    "Hammer Throw": "ht",  # unconfirmed
+    "Javelin Throw": "jt",
+    "Decathlon": "dec",
+    "Heptathlon": "hep",  # unconfirmed
+}
+
+
+def wa_discipline_code(name: str) -> str | None:
+    """'Javelin Throw' -> 'jt'; None for anything that is not a senior Olympic discipline."""
+    return WA_PROFILE_NAMES.get(" ".join(name.split()))
