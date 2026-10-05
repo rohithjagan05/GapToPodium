@@ -1,0 +1,19 @@
+# dbt project for Gap to the Podium: raw (loaded by Python) -> staging (views) -> marts (tables)
+name: gap_to_podium
+version: "1.0.0"
+config-version: 2
+profile: gap_to_podium
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  gap_to_podium:
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table

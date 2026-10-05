@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw tables loaded from data/raw/ by src/load_bigquery.py (newest snapshot each load).
+    database: "{{ env_var('GCP_PROJECT_ID', 'gap-to-podium') }}"
+    schema: raw
+    tables:
+      - name: raw_olympedia_results
+        description: One row per athlete per individual event per Games (overall standings).
+      - name: raw_worlds_podium
+        description: One row per World Championships medallist, 2013-2025, from Wikipedia.
+      - name: raw_wa_athletes
+        description: One row per verified Indian athlete, with birth date.
+      - name: raw_wa_marks
+        description: Personal bests, season bests and season-by-season progression marks.
+      - name: raw_wa_profiles
+        description: Full World Athletics profile JSON per athlete per scrape.

@@ -1,0 +1,14 @@
+# How dbt connects to BigQuery. No secrets here: "oauth" uses the Application Default
+# Credentials saved by `gcloud auth application-default login`, the same login as the loader.
+gap_to_podium:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID', 'gap-to-podium') }}"
+      dataset: analytics
+      location: "{{ env_var('BQ_LOCATION', 'US') }}"
+      threads: 4
+      job_execution_timeout_seconds: 300
+      priority: interactive
