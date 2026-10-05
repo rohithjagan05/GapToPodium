@@ -17,6 +17,7 @@ help:
 	@echo "make validate   check the latest raw data from all sources"
 	@echo "make phase1     all three scrapers, then validation"
 	@echo "make load       validate, then load the latest raw files into BigQuery"
+	@echo "make dbt-build  build and test all dbt models in BigQuery"
 
 setup:
 	$(PYTHON) -m pip install -r requirements.txt
@@ -45,3 +46,5 @@ phase1: olympedia worlds wa validate
 
 load: validate
 	$(PYTHON) -m src.load_bigquery
+dbt-build:
+	cd dbt && dbt build

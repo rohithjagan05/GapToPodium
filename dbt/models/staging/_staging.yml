@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: stg_olympic_results
+    description: One row per athlete per individual event per Olympic Games, 2000-2024.
+    columns:
+      - name: championship_year
+        data_tests: [not_null]
+      - name: event_key
+        data_tests: [not_null]
+      - name: discipline_group
+        description: Null would mean an event key missing from src/events.py.
+        data_tests: [not_null]
+      - name: sex
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["m", "w", "x"]
+      - name: medal
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["Gold", "Silver", "Bronze"]
+      - name: country_code
+        data_tests: [not_null]
+
+  - name: stg_worlds_podium
+    description: One row per World Championships medallist, 2013-2025.
+    columns:
+      - name: event_key
+        data_tests: [not_null]
+      - name: discipline_group
+        data_tests: [not_null]
+      - name: medal
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["Gold", "Silver", "Bronze"]
+      - name: mark_value
+        description: Every medallist has a mark; validation checks the same before loading.
+        data_tests: [not_null]
+
+  - name: stg_wa_athletes
+    description: One row per verified Indian athlete.
+    columns:
+      - name: wa_id
+        data_tests: [not_null, unique]
+      - name: birth_date
+        data_tests: [not_null]
+      - name: country_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["IND"]
+
+  - name: stg_wa_marks
+    description: Indian athletes' marks in senior Olympic disciplines, equalled PBs removed.
+    columns:
+      - name: wa_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_wa_athletes')
+                field: wa_id
+      - name: discipline_group
+        data_tests: [not_null]
+      - name: kind
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["personal_best", "season_best", "season_progression"]
+      - name: mark_value
+        data_tests: [not_null]

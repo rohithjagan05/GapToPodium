@@ -16,3 +16,5 @@ sources:
         description: Personal bests, season bests and season-by-season progression marks.
       - name: raw_wa_profiles
         description: Full World Athletics profile JSON per athlete per scrape.
+      - name: raw_disciplines
+        description: Discipline code, group and direction, loaded from src/events.py.
