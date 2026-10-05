@@ -70,7 +70,9 @@ def test_valid_marks(text, expected):
         "2-7:00",  # one-digit minutes is not a valid time
         "m",  # a unit alone is not a mark
         "=",
-        "13.18 13.30 [ 47 ]",  # two different marks: the scraper splits these per athlete
+        "13.18 13.30 [ 47 ]",
+        ("17.19=", 17.19),  # World Athletics: an equalled best
+        ("17:12.15=", 1032.15),  # two different marks: the scraper splits these per athlete
     ],
 )
 def test_invalid_marks_return_none(text):
@@ -79,3 +81,17 @@ def test_invalid_marks_return_none(text):
 
 def test_points_are_returned_as_float():
     assert isinstance(parse_mark("8,909"), float)
+
+@pytest.mark.parametrize(
+    ("text", "road", "expected"),
+    [
+        ("1:26.34", True, 5194.0),  # Wikipedia's 20 km walk style: 1:26:34
+        ("2:08.53", True, 7733.0),  # marathon: 2:08:53
+        ("4:04.20", True, 14660.0),  # 50 km walk: 4:04:20
+        ("1:26.34", False, 86.34),  # off the road it stays m:ss.xx
+        ("1:20:08", True, 4808.0),  # a normal road time is unchanged
+        ("10.62", True, 10.62),
+    ],
+)
+def test_road_rule_reads_dotted_hours(text, road, expected):
+    assert parse_mark(text, road=road) == pytest.approx(expected)

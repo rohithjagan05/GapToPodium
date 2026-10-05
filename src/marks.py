@@ -13,22 +13,26 @@ import re
 _LABEL_TOKEN = re.compile(r"^=?[A-Z][A-Z0-9]*$")
 # Lower-case words that carry no value: metres, points, wind-assisted, a lone "=".
 _NOISE_TOKENS = {"m", "pts", "w", "="}
-# A single letter stuck to the end of a number: metres (m), hand-timed (h), altitude (A), wind (w).
-_ANNOTATION_SUFFIX = re.compile(r"(?<=\d)[mhAw]$")
+# A single character stuck to the end of a number: metres (m), hand-timed (h), altitude (A),
+# wind (w), or "=" (World Athletics marks an equalled best as "17.19=").
+_ANNOTATION_SUFFIX = re.compile(r"(?<=\d)[mhAw=]$")
 # Olympedia writes h:mm:ss with a hyphen after the hours: "2-07:00" means 2:07:00.
 _HOUR_HYPHEN = re.compile(r"^(\d+)-(?=\d{2}:\d{2})")
+# Wikipedia writes some road times as h:mm.ss: "1:26.34" for a 20 km walk means 1:26:34.
+_ROAD_DOT_HOURS = re.compile(r"^(\d):(\d{2})\.(\d{2})$")
 _PLAIN_NUMBER = re.compile(r"^\d+(\.\d+)?$")
 _THOUSANDS = re.compile(r"^\d{1,3}(,\d{3})+$")
 _CLOCK_PART = re.compile(r"^\d{1,2}$")
 _SECONDS_PART = re.compile(r"^\d{1,2}(\.\d+)?$")
 
 
-def parse_mark(text: str | None) -> float | None:
+def parse_mark(text: str | None, road: bool = False) -> float | None:
     """Return the mark as a float, or None if the text is not a valid mark.
 
     "10.62" -> 10.62, "1:43.03" -> 103.03, "2:06:26" or "2-06:26" -> 7586.0,
-    "8,909" or "9045 pts WR" -> points, "88.17 m" -> 88.17, "2.41 WL, CR, =NR" -> 2.41,
-    "4.65 m = NR 4.65 m" -> 4.65, "DNF" -> None
+    "8,909" or "9045 pts WR" -> points, "88.17 m" -> 88.17, "17.19=" -> 17.19, "DNF" -> None.
+    With road=True (marathon, race walks), "1:26.34" means 1:26:34, since a road race cannot
+    last 86 seconds.
     """
     if text is None:
         return None
@@ -43,6 +47,8 @@ def parse_mark(text: str | None) -> float | None:
         return None
     token = _ANNOTATION_SUFFIX.sub("", tokens[0])
     token = _HOUR_HYPHEN.sub(r"\1:", token)
+    if road:
+        token = _ROAD_DOT_HOURS.sub(r"\1:\2:\3", token)
 
     if _PLAIN_NUMBER.match(token):
         return round(float(token), 3)
