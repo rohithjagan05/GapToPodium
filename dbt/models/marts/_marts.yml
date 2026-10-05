@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: mart_podium_threshold
+    description: Gold, silver and bronze-threshold marks per championship and event, with a rolling 3-championship average.
+    columns:
+      - name: gold_mark
+        data_tests: [not_null]
+      - name: bronze_mark
+        description: Third-best podium mark (handles ties, stripped medals, vacant and appeal-shared bronzes).
+        data_tests: [not_null]
+
+  - name: mart_india_best
+    description: India's best current mark per event (last india_recent_seasons seasons, outdoor and legal).
+    columns:
+      - name: event_key
+        data_tests: [not_null, unique]
+      - name: best_mark
+        data_tests: [not_null]
+
+  - name: mart_gap_to_podium
+    description: One row per event on the latest Olympic programme; gap_pct > 0 means India is behind.
+    columns:
+      - name: event_key
+        data_tests: [not_null, unique]
+      - name: bronze_threshold
+        data_tests: [not_null]

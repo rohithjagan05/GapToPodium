@@ -17,3 +17,7 @@ models:
     marts:
       +schema: marts
       +materialized: table
+
+
+vars:
+  india_recent_seasons: 2  # "current" = the last N seasons in the World Athletics data
