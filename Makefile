@@ -16,6 +16,7 @@ help:
 	@echo "make wa         scrape World Athletics profiles for seeded athletes"
 	@echo "make validate   check the latest raw data from all sources"
 	@echo "make phase1     all three scrapers, then validation"
+	@echo "make load       validate, then load the latest raw files into BigQuery"
 
 setup:
 	$(PYTHON) -m pip install -r requirements.txt
@@ -41,3 +42,6 @@ validate:
 	$(PYTHON) -m src.validate
 
 phase1: olympedia worlds wa validate
+
+load: validate
+	$(PYTHON) -m src.load_bigquery

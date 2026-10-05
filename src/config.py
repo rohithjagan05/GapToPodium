@@ -31,6 +31,10 @@ OLYMPEDIA_EDITIONS: dict[int, int] = {
 REQUEST_DELAY_SECONDS = 2.0
 
 REPO_URL = "https://github.com/rohithjagan05/GapToPodium"
+# BigQuery (Phase 2). Not secrets, so defaults are fine; override in .env if needed.
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "gap-to-podium")
+BQ_LOCATION = os.getenv("BQ_LOCATION", "US")
+BQ_RAW_DATASET = os.getenv("BQ_RAW_DATASET", "raw")
 
 
 def get_contact_email() -> str:

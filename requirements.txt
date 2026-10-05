@@ -1,4 +1,4 @@
-# Python 3.11. Pinned versions tested on 2026-10-03.
+# Python 3.11. Pinned versions tested on 2026-10-03 (Phase 1) and 2026-10-05 (Phase 2).
 
 # Phase 1: scraping, storage, validation
 requests==2.34.2
@@ -8,6 +8,12 @@ pandas==3.0.6
 pyarrow==25.0.1
 python-dotenv==1.2.4
 tenacity==9.1.4
+
+# Phase 2: warehouse and transformation
+google-cloud-bigquery==3.46.1
+db-dtypes==1.7.2
+dbt-core==1.12.5
+dbt-bigquery==1.12.1
 
 # Testing and code quality
 pytest==9.1.1
