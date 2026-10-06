@@ -1,7 +1,8 @@
 -- One row per verified Indian athlete, named as on their World Athletics profile.
 select
     wa_id,
-    trim(profile_name) as athlete_name,
+        -- single-name athletes have "." as their given name on World Athletics (". SEEMA")
+    regexp_replace(trim(profile_name), r'^\.\s*', '') as athlete_name,
     trim(seed_name) as seed_name,
     sex,
     birth_date,
