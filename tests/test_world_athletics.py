@@ -232,3 +232,18 @@ def test_extract_tables_builds_both_tables():
     assert list(athletes.columns) == wa.ATHLETE_COLUMNS
     assert list(marks.columns) == wa.MARK_COLUMNS
     assert len(athletes) == 1 and len(marks) > 2
+    assert str(marks["list_position"].dtype) == "Int64"  # whole numbers, blanks allowed
+
+def test_list_positions_are_extracted(neeraj):
+    _, marks = neeraj
+    pb = next(m for m in marks if m["kind"] == "personal_best")
+    sb = next(m for m in marks if m["kind"] == "season_best")
+    first = next(m for m in marks if m["kind"] == "season_progression" and m["season"] == 2013)
+    assert (pb["list_position"], sb["list_position"], first["list_position"]) == (26, 3, 367)
+
+
+def test_venue_marked_i_is_indoor_even_when_the_flag_says_outdoor():
+    seed = wa.SeedAthlete("Gulveer Singh", "m", ("5000m_m",), "15023839")
+    item = {"mark": "12:59.77", "indoor": False,
+            "venue": "Boston Univ. Track & Tennis Center, Boston, MA (USA) (i)"}
+    assert wa._mark_row(seed, "5000m_m", "personal_best", item)["indoor"] is True

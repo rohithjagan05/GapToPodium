@@ -32,6 +32,11 @@ joined as (
         i.best_mark_raw as india_best_mark_raw,
         i.best_athlete as india_best_athlete,
         i.mark_date as india_mark_date,
+        i.best_world_rank as india_world_rank,
+        i.best_season as india_rank_season,
+        -- championship finals in these events are tactical or weather-affected, so their marks
+        -- understate medal pace; read gaps here alongside india_world_rank
+        p.discipline_group in ('middle_distance', 'long_distance', 'road') as tactical_event,
         coalesce(d.podium_depth, 0) as podium_depth,
         round(100 * case
             when i.best_mark is null then null

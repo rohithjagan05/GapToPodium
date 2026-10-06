@@ -39,7 +39,7 @@ PROBLEMS_FILE = RAW_DIR / "wa_mismatches.csv"
 PROBLEM_COLUMNS = ["seed_name", "wa_id", "issue", "detail"]
 ATHLETE_COLUMNS = ["wa_id", "seed_name", "profile_name", "sex", "birth_date", "country_code"]
 MARK_COLUMNS = ["wa_id", "event_key", "kind", "season", "mark_raw", "date", "venue",
-                "competition", "wind", "indoor", "not_legal"]  # fmt: skip
+                "competition", "wind", "indoor", "not_legal", "list_position"]  # fmt: skip
 
 
 class PageFetcher(Protocol):
@@ -187,24 +187,31 @@ def parse_wa_date(text: str | None) -> date | None:
         return None
 
 
-def _season(value) -> int | None:
+def _as_int(value) -> int | None:
+    """'2013' or 2013 -> 2013; anything else -> None (used for seasons and list positions)."""
     return int(value) if value is not None and str(value).isdigit() else None
 
 
 def _mark_row(seed: SeedAthlete, event_key: str, kind: str, item: dict,
               season=None, indoor=None) -> dict:  # fmt: skip
+    venue = item.get("venue") or ""
     return {
         "wa_id": seed.wa_id,
         "event_key": event_key,
         "kind": kind,
-        "season": _season(season),
+        "season": _as_int(season),
         "mark_raw": item.get("mark"),
         "date": parse_wa_date(item.get("date")),
         "venue": item.get("venue"),
         "competition": item.get("competition") or item.get("eventName"),
         "wind": item.get("wind"),
-        "indoor": bool(item.get("indoor", indoor)),
+        # The profile's indoor flag is unreliable; a venue ending in "(i)" means indoor
+        # (e.g. Gulveer Singh's 12:59.77 at Boston University's indoor track, filed as outdoor).
+        "indoor": bool(item.get("indoor", indoor)) or venue.rstrip().endswith("(i)"),
         "not_legal": bool(item.get("notLegal")),
+        # World Athletics' own world-list position for the mark (season list for season bests
+        # and progression; it appears to be the all-time list for personal bests).
+        "list_position": _as_int(item.get("listPosition")),
     }
 
 
@@ -257,7 +264,9 @@ def extract_tables(
         athletes.append(athlete)
         marks.extend(rows)
     athletes_df = pd.DataFrame(athletes, columns=ATHLETE_COLUMNS)
-    marks_df = pd.DataFrame(marks, columns=MARK_COLUMNS).astype({"season": "Int64"})
+    marks_df = pd.DataFrame(marks, columns=MARK_COLUMNS).astype(
+        {"season": "Int64", "list_position": "Int64"}
+    )
     return athletes_df, marks_df
 
 

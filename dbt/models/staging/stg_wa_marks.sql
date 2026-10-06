@@ -25,7 +25,8 @@ select
     m.competition,
     m.wind,
     m.indoor,
-    m.not_legal
+    m.not_legal,
+    m.list_position
 from marks as m
 left join disciplines as d
     on d.discipline = regexp_replace(m.event_key, r'_[mwx]$', '')

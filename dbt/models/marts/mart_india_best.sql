@@ -19,7 +19,7 @@ athlete_best as (
     select
         wa_id, event_key, discipline, sex, discipline_group, higher_is_better,
         array_agg(
-            struct(mark_value, mark_raw, mark_date, season)
+            struct(mark_value, mark_raw, mark_date, season, list_position)
             order by if(higher_is_better, -mark_value, mark_value), mark_date
             limit 1
         )[offset(0)] as best
@@ -48,6 +48,7 @@ select
     best.mark_raw as best_mark_raw,
     best.mark_date,
     best.season as best_season,
+    best.list_position as best_world_rank,
     athletes_in_window
 from ranked
 where rank_in_event = 1
