@@ -36,7 +36,7 @@ _ATHLETE_HREF = re.compile(r"athlete=(\d+)")
 
 
 class PageFetcher(Protocol):
-    def get(self, url: str) -> str: ...
+    def get(self, url: str, refresh: bool = False) -> str: ...
 
 
 def toplist_url(event_key: str, season: int, page: int = 1) -> str:
@@ -84,26 +84,40 @@ def parse_toplist(html: str) -> list[dict]:
     return rows
 
 
+def _get_page(fetcher: PageFetcher, url: str, label: str, refresh: bool = False) -> str | None:
+    """The page's HTML, or None after logging a missing page or a persistent server error."""
+    try:
+        return fetcher.get(url, refresh=refresh)
+    except requests.HTTPError as exc:
+        logger.warning("%s: %s", label, exc)
+        return None
+    except RetryableHTTPError as exc:
+        if exc.status_code < 500:
+            raise  # still refused (202/429) after waiting: stop, and rerun later
+        logger.warning("%s: server error %s", label, exc.status_code)
+        return None
+
+
 def scrape_toplists(events: Sequence[str], seasons: Sequence[int],
                     fetcher: PageFetcher) -> pd.DataFrame:  # fmt: skip
-    """Every requested event and season; pages that fail or have no rows are logged and skipped."""
+    """Every requested event and season; pages that fail or have no rows are logged and skipped.
+
+    World Athletics sometimes serves a normal-looking page (HTTP 200, so it gets cached) with no
+    results table; such a page is fetched once more, fresh, before it is given up on.
+    """
     all_rows: list[dict] = []
     for season in seasons:
         for event_key in events:
             url = toplist_url(event_key, season)
-            try:
-                html = fetcher.get(url)
-            except requests.HTTPError as exc:
-                logger.warning("%s %s: %s", season, event_key, exc)
-                continue
-            except RetryableHTTPError as exc:
-                if exc.status_code < 500:
-                    raise  # still refused (202/429) after waiting: stop, and rerun later
-                logger.warning("%s %s: server error %s", season, event_key, exc.status_code)
-                continue
-            rows = parse_toplist(html)
+            label = f"{season} {event_key}"
+            html = _get_page(fetcher, url, label)
+            rows = parse_toplist(html) if html else []
+            if html and not rows:
+                logger.info("%s: no results table; fetching the page again", label)
+                html = _get_page(fetcher, url, label, refresh=True)
+                rows = parse_toplist(html) if html else []
             if not rows:
-                logger.warning("%s %s: no toplist rows on %s", season, event_key, url)
+                logger.warning("%s: no toplist rows on %s", label, url)
                 continue
             for row in rows:
                 row.update(season=season, event_key=event_key, source_url=url)

@@ -12,10 +12,17 @@ def rows():
 
 
 class FakeFetcher:
-    def __init__(self, pages: dict[str, str]) -> None:
-        self.pages = pages
+    """Serves pages by URL; `fresh` pages are returned only when refresh=True is asked for."""
 
-    def get(self, url: str) -> str:
+    def __init__(self, pages: dict[str, str], fresh: dict[str, str] | None = None) -> None:
+        self.pages = pages
+        self.fresh = fresh or {}
+        self.refreshes: list[str] = []
+
+    def get(self, url: str, refresh: bool = False) -> str:
+        if refresh:
+            self.refreshes.append(url)
+            return self.fresh.get(url, self.pages[url])
         return self.pages[url]
 
 
@@ -68,3 +75,11 @@ def test_programme_has_42_events_each_with_slugs():
 
 def test_default_seasons_use_2021_for_tokyo():
     assert 2021 in wt.DEFAULT_SEASONS and 2020 not in wt.DEFAULT_SEASONS
+
+def test_page_without_results_is_fetched_again_fresh():
+    url = wt.toplist_url("jt_m", 2024)
+    fetcher = FakeFetcher({url: "<html><body>no table</body></html>"},
+                          fresh={url: FIXTURE.read_text(encoding="utf-8")})  # fmt: skip
+    df = wt.scrape_toplists(["jt_m"], [2024], fetcher)
+    assert fetcher.refreshes == [url]
+    assert len(df) == 12
