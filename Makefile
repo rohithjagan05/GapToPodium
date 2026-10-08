@@ -18,6 +18,7 @@ help:
 	@echo "make phase1     all three scrapers, then validation"
 	@echo "make load       validate, then load the latest raw files into BigQuery"
 	@echo "make dbt-build  build and test all dbt models in BigQuery"
+	@echo "make toplists   scrape World Athletics world toplists (5 seasons x 42 events)"
 
 setup:
 	$(PYTHON) -m pip install -r requirements.txt
@@ -48,3 +49,5 @@ load: validate
 	$(PYTHON) -m src.load_bigquery
 dbt-build:
 	cd dbt && dbt build
+toplists:
+	$(PYTHON) -m src.scrapers.wa_toplists

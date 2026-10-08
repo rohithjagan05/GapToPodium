@@ -223,3 +223,47 @@ WA_PROFILE_NAMES: dict[str, str] = {
 def wa_discipline_code(name: str) -> str | None:
     """'Javelin Throw' -> 'jt'; None for anything that is not a senior Olympic discipline."""
     return WA_PROFILE_NAMES.get(" ".join(name.split()))
+
+# --- World Athletics toplists -------------------------------------------------------------
+# Toplist URL parts per discipline (the same for both sexes), read from the saved profiles by
+# scripts/list_wa_event_slugs.py on 9 Oct 2026.
+WA_TOPLIST_SLUGS: dict[str, tuple[str, str]] = {
+    "100m": ("sprints", "100-metres"),
+    "200m": ("sprints", "200-metres"),
+    "400m": ("sprints", "400-metres"),
+    "800m": ("middlelong", "800-metres"),
+    "1500m": ("middlelong", "1500-metres"),
+    "5000m": ("middlelong", "5000-metres"),
+    "10000m": ("middlelong", "10000-metres"),
+    "3000msc": ("middlelong", "3000-metres-steeplechase"),
+    "marathon": ("road-running", "marathon"),
+    "110mh": ("hurdles", "110-metres-hurdles"),
+    "100mh": ("hurdles", "100-metres-hurdles"),
+    "400mh": ("hurdles", "400-metres-hurdles"),
+    "20kmw": ("race-walks", "20-kilometres-race-walk"),
+    "50kmw": ("race-walks", "50-kilometres-race-walk"),
+    "hj": ("jumps", "high-jump"),
+    "pv": ("jumps", "pole-vault"),
+    "lj": ("jumps", "long-jump"),
+    "tj": ("jumps", "triple-jump"),
+    "sp": ("throws", "shot-put"),
+    "dt": ("throws", "discus-throw"),
+    "ht": ("throws", "hammer-throw"),
+    "jt": ("throws", "javelin-throw"),
+    "dec": ("combined-events", "decathlon"),
+    "hep": ("combined-events", "heptathlon"),
+}
+
+# Discipline-sex pairs that do not exist at the Olympics.
+_NOT_ON_PROGRAMME = {"110mh_w", "100mh_m", "dec_w", "hep_m"}
+
+
+def programme_event_keys() -> list[str]:
+    """The 42 individual events on the Paris 2024 Olympic programme (no 50 km walk, no relays)."""
+    return [
+        f"{discipline}_{sex}"
+        for discipline, (group, _) in DISCIPLINES.items()
+        if group != "relays" and discipline != "50kmw"
+        for sex in ("m", "w")
+        if f"{discipline}_{sex}" not in _NOT_ON_PROGRAMME
+    ]
