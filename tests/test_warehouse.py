@@ -7,7 +7,7 @@ class FakeJob:
     def __init__(self, frame):
         self.frame = frame
 
-    def to_dataframe(self):
+    def to_dataframe(self, **kwargs):
         return self.frame
 
 

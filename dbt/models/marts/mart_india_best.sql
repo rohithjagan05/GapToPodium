@@ -9,10 +9,19 @@ with marks as (
         and mark_value is not null
 ),
 
-recent as (
+recent_all as (
     select *
     from marks
     where season > (select max(season) from marks) - {{ var('india_recent_seasons') }}
+),
+
+-- Combined-event athletes' individual-discipline marks come from inside a decathlon or heptathlon,
+-- so an athlete with a recent combined-event mark counts only in that combined event.
+recent as (
+    select *
+    from recent_all
+    where discipline_group = 'combined'
+        or wa_id not in (select wa_id from recent_all where discipline_group = 'combined')
 ),
 
 athlete_best as (

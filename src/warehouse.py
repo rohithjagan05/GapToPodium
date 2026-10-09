@@ -14,7 +14,7 @@ from src.config import BQ_LOCATION, GCP_PROJECT_ID
 def query(sql: str, client=None) -> pd.DataFrame:
     """Run a SQL query and return the result as a DataFrame."""
     client = client or bigquery.Client(project=GCP_PROJECT_ID, location=BQ_LOCATION)
-    return client.query(sql).to_dataframe()
+    return client.query(sql).to_dataframe(create_bqstorage_client=False)
 
 
 def table(name: str, client=None) -> pd.DataFrame:
