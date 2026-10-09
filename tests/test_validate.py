@@ -143,7 +143,7 @@ def test_report_returns_exit_codes(capsys):
 def test_missing_inputs_fail():
     results = v.run_checks({})
     assert {r.source for r in results if r.status == v.FAIL} == {
-        "olympedia", "worlds", "wa_athletes", "wa_marks", "seeds"}  # fmt: skip
+        "olympedia", "worlds", "wa_toplists", "wa_athletes", "wa_marks", "seeds"}  # fmt: skip
 
 
 @pytest.mark.parametrize("status", [v.PASS, v.INFO])
@@ -162,6 +162,9 @@ def test_run_checks_on_small_valid_inputs_gives_only_passing_results():
             columns=["championship_year", "event_key", "medal", "athlete_name",
                      "country_name", "mark_raw"],
         ),
+        "wa_toplists": pd.DataFrame({"season": [2024], "event_key": ["jt_m"],
+                                     "athlete_name": ["Neeraj CHOPRA"], "wa_id": ["14549089"],
+                                     "mark_raw": ["89.49"]}),
         "wa_athletes": pd.DataFrame({"wa_id": ["14549089"], "country_code": ["IND"],
                                      "birth_date": [date(1997, 12, 24)]}),
         "wa_marks": pd.DataFrame({"wa_id": ["14549089"], "event_key": ["jt_m"],
@@ -174,6 +177,8 @@ def test_run_checks_on_small_valid_inputs_gives_only_passing_results():
     results = v.run_checks(inputs)
     assert all(isinstance(r, v.CheckResult) for r in results)
     assert [r.name for r in results if r.status != v.PASS] == []
+
+    assert any(r.source == "toplists" for r in results)  # the toplist checks actually ran
 
 def test_world_record_level_marks_are_not_flagged():
     rows = [(2023, "sp_m", "Ryan Crouser", "USA", 1, "Gold", "23.56", 1),

@@ -22,7 +22,7 @@ from src.events import DISCIPLINES
 from src.validate import with_values
 
 PROFILE_COLUMNS = ["wa_id", "scraped_at", "payload"]
-MARK_TABLES = {"raw_olympedia_results", "raw_worlds_podium", "raw_wa_marks"}
+MARK_TABLES = {"raw_olympedia_results", "raw_worlds_podium", "raw_wa_marks", "raw_wa_toplists"}
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ def plan_loads(raw_dir: Path = RAW_DIR) -> list[LoadPlan]:
     """The newest file from each source (file and folder names carry UTC timestamps)."""
     olympedia = max((raw_dir / "olympedia").glob("*.parquet"), default=None)
     worlds = max((raw_dir / "worlds").glob("*.parquet"), default=None)
+    toplists = max((raw_dir / "wa_toplists").glob("*.parquet"), default=None)
     wa_run = max((p for p in (raw_dir / "wa").glob("*") if (p / "marks.parquet").exists()),
                  default=None)
     plans = []
@@ -42,6 +43,8 @@ def plan_loads(raw_dir: Path = RAW_DIR) -> list[LoadPlan]:
         plans.append(LoadPlan("raw_olympedia_results", olympedia))
     if worlds:
         plans.append(LoadPlan("raw_worlds_podium", worlds))
+    if toplists:
+        plans.append(LoadPlan("raw_wa_toplists", toplists))
     if wa_run:
         plans += [
             LoadPlan("raw_wa_athletes", wa_run / "athletes.parquet"),

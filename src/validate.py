@@ -228,11 +228,13 @@ def load_inputs(raw_dir: Path = RAW_DIR,
     """The newest file from each source (file and folder names carry UTC timestamps)."""
     olympedia = max((raw_dir / "olympedia").glob("*.parquet"), default=None)
     worlds = max((raw_dir / "worlds").glob("*.parquet"), default=None)
+    toplists = max((raw_dir / "wa_toplists").glob("*.parquet"), default=None)
     wa_runs = [p for p in (raw_dir / "wa").glob("*") if (p / "marks.parquet").exists()]
     wa_run = max(wa_runs, default=None)
     return {
         "olympedia": pd.read_parquet(olympedia) if olympedia else None,
         "worlds": pd.read_parquet(worlds) if worlds else None,
+        "wa_toplists": pd.read_parquet(toplists) if toplists else None,
         "wa_athletes": pd.read_parquet(wa_run / "athletes.parquet") if wa_run else None,
         "wa_marks": pd.read_parquet(wa_run / "marks.parquet") if wa_run else None,
         "seeds": (pd.read_csv(seeds_path, dtype=str, keep_default_na=False)
@@ -242,7 +244,7 @@ def load_inputs(raw_dir: Path = RAW_DIR,
 
 def run_checks(inputs: dict) -> list[CheckResult]:
     results: list[CheckResult] = []
-    for key in ("olympedia", "worlds", "wa_athletes", "wa_marks", "seeds"):
+    for key in ("olympedia", "worlds", "wa_toplists", "wa_athletes", "wa_marks", "seeds"):
         if inputs.get(key) is None:
             results.append(CheckResult(key, "input present", FAIL, "no file found"))
 
@@ -271,6 +273,16 @@ def run_checks(inputs: dict) -> list[CheckResult]:
             *check_ranges(w, "worlds"),
             check_no_duplicates(w, [*group, "athlete_name"], "worlds"),
         ]
+
+    if inputs.get("wa_toplists") is not None:
+        t = with_values(inputs["wa_toplists"])
+        results += [
+            check_required(t, ["season", "event_key", "athlete_name", "wa_id"], "toplists"),
+            check_marks_parse(t, "toplists"),
+            *check_ranges(t, "toplists"),
+            check_no_duplicates(t, ["season", "event_key", "wa_id"], "toplists"),
+        ]
+    
     if inputs.get("wa_athletes") is not None:
         athletes = inputs["wa_athletes"]
         results += check_wa_athletes(athletes)

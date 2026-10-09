@@ -16,6 +16,8 @@ def make_raw(tmp_path):
     """A small raw folder: two Olympedia files, one Worlds file, one complete and one partial run."""
     (tmp_path / "olympedia").mkdir()
     (tmp_path / "worlds").mkdir()
+    (tmp_path / "wa_toplists").mkdir()
+    marks_frame("89.49").to_parquet(tmp_path / "wa_toplists" / "wa_toplists_20261008T195132Z.parquet")
     for name in ("olympedia_results_20261003T000000Z", "olympedia_results_20261004T111259Z"):
         marks_frame().to_parquet(tmp_path / "olympedia" / f"{name}.parquet")
     marks_frame("88.17 m").to_parquet(tmp_path / "worlds" / "worlds_podium_20261004T155605Z.parquet")
@@ -58,6 +60,7 @@ def test_plan_picks_the_newest_file_from_each_source(tmp_path):
     assert plans["raw_wa_marks"] == run / "marks.parquet"  # the partial newer run is skipped
     assert plans["raw_wa_profiles"] == run
     assert plans["raw_disciplines"] is None
+    assert plans["raw_wa_toplists"].name.startswith("wa_toplists_")
 
 
 def test_plan_is_empty_without_raw_files(tmp_path):
@@ -86,10 +89,11 @@ def test_load_all_adds_mark_values_and_replaces_each_table(tmp_path):
                          location="US")
     assert client.datasets == [("raw", "US", True)]
     assert set(loaded) == {"raw_olympedia_results", "raw_worlds_podium", "raw_wa_athletes",
-                           "raw_wa_marks", "raw_wa_profiles", "raw_disciplines"}
+                           "raw_wa_marks", "raw_wa_profiles", "raw_disciplines", "raw_wa_toplists"}
     for df, config in client.loads.values():
         assert config.write_disposition == bigquery.WriteDisposition.WRITE_TRUNCATE
     assert client.loads["p.raw.raw_olympedia_results"][0]["mark_value"].tolist() == [89.45]
     assert client.loads["p.raw.raw_worlds_podium"][0]["mark_value"].tolist() == [88.17]
     assert client.loads["p.raw.raw_wa_marks"][0]["mark_value"].tolist() == [90.23]
     assert "mark_value" not in client.loads["p.raw.raw_wa_athletes"][0].columns
+    assert client.loads["p.raw.raw_wa_toplists"][0]["mark_value"].tolist() == [89.49]

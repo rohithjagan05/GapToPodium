@@ -83,3 +83,15 @@ def test_page_without_results_is_fetched_again_fresh():
     df = wt.scrape_toplists(["jt_m"], [2024], fetcher)
     assert fetcher.refreshes == [url]
     assert len(df) == 12
+
+NAME_SLUG_ROW = """<table><tr>
+<td data-th="Rank">86</td><td data-th="Mark">49.77</td><td data-th="WIND"></td>
+<td data-th="Competitor"><a href="/athletes/japan/naoto-noguchi-14562705">Naoto NOGUCHI</a></td>
+<td data-th="DOB">07 MAY 1994</td><td data-th="Nat">JPN</td><td data-th="Pos">2</td>
+<td data-th="Venue">Osaka (JPN)</td><td data-th="Date">08 MAY 2016</td>
+<td data-th="ResultScore">1141</td></tr></table>"""
+
+
+def test_name_slug_links_also_give_the_athlete_id():
+    (row,) = wt.parse_toplist(NAME_SLUG_ROW)
+    assert (row["wa_id"], row["athlete_name"], row["rank"]) == ("14562705", "Naoto NOGUCHI", 86)

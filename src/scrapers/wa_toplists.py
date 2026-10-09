@@ -32,7 +32,9 @@ DEFAULT_SEASONS = (2016, 2021, 2024, 2025, 2026)
 COLUMNS = ["season", "event_key", "rank", "mark_raw", "wind", "athlete_name", "wa_id",
            "birth_date", "country_code", "place", "venue", "date", "result_score",
            "source_url"]  # fmt: skip
-_ATHLETE_HREF = re.compile(r"athlete=(\d+)")
+# Athlete links come in two styles in the same table: "/athletes/athlete=14549089" and
+# "/athletes/japan/naoto-noguchi-14562705". Either way, the World Athletics ID ends the link.
+_ATHLETE_HREF = re.compile(r"^/athletes/.*(?:athlete=|-)(\d+)$")
 
 
 class PageFetcher(Protocol):

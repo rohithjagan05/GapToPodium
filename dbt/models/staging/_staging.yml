@@ -74,3 +74,17 @@ models:
                 values: ["personal_best", "season_best", "season_progression"]
       - name: mark_value
         data_tests: [not_null]
+
+  - name: stg_wa_toplists
+    description: World top 100 per event and season (outdoor, one season best per athlete).
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: event_key
+        data_tests: [not_null]
+      - name: discipline_group
+        data_tests: [not_null]
+      - name: wa_id
+        data_tests: [not_null]
+      - name: mark_value
+        data_tests: [not_null]
