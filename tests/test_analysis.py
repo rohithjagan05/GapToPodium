@@ -77,3 +77,21 @@ def test_a_season_best_worse_than_the_olympic_mark_is_flagged_and_left_out():
     assert matched["sb_consistent"].tolist() == [True, False, True]
     per_games = an.season_best_bronze(matched)
     assert per_games["medallists_matched"].iloc[0] == 2  # only the two consistent matches count
+
+def test_rank_test_detects_worse_ranks_in_tactical_events():
+    matched = pd.DataFrame({
+        "discipline_group": ["long_distance"] * 6 + ["throws"] * 6 + ["throws"],
+        "world_rank": [14, 41, 93, 62, 13, 8] + [1, 2, 3, 4, 2, 5] + [500],
+        "sb_consistent": [True] * 12 + [False],  # the inconsistent match must be ignored
+    })
+    out = an.medallist_rank_test(matched)
+    assert (out["n_tactical"], out["n_all_out"]) == (6, 6)
+    assert out["median_rank_tactical"] > out["median_rank_all_out"]
+    assert out["p_value"] < 0.05
+
+
+def test_rank_test_finds_nothing_when_groups_are_alike():
+    ranks = [1, 5, 9, 3, 7, 2]
+    matched = pd.DataFrame({"discipline_group": ["road"] * 6 + ["jumps"] * 6,
+                            "world_rank": ranks + ranks, "sb_consistent": [True] * 12})  # fmt: skip
+    assert an.medallist_rank_test(matched)["p_value"] > 0.4

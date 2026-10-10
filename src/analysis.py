@@ -12,6 +12,7 @@ import unicodedata
 
 import numpy as np
 import pandas as pd
+from scipy.stats import mannwhitneyu
 
 from src.scrapers.world_athletics import names_match
 
@@ -130,3 +131,24 @@ def gap_pct(mark, threshold, higher_is_better) -> np.ndarray:
     mark, threshold = _floats(mark), _floats(threshold)
     higher = np.asarray(higher_is_better, dtype=bool)
     return 100 * np.where(higher, (threshold - mark) / threshold, (mark - threshold) / threshold)
+
+TACTICAL_GROUPS = {"middle_distance", "long_distance", "road"}
+
+
+def medallist_rank_test(matched: pd.DataFrame) -> dict:
+    """Do medallists in tactical events have worse season-best world ranks than in all-out events?
+
+    One-sided Mann-Whitney U test on the matched medallists' world ranks (ranks are skewed, so the
+    test compares rankings rather than means). Only consistent matches are used.
+    """
+    ok = matched[matched["sb_consistent"].eq(True)]
+    tactical = ok["discipline_group"].isin(TACTICAL_GROUPS)
+    t = ok.loc[tactical, "world_rank"].astype(float)
+    a = ok.loc[~tactical, "world_rank"].astype(float)
+    result = mannwhitneyu(t, a, alternative="greater")
+    return {"n_tactical": len(t), "n_all_out": len(a),
+            "median_rank_tactical": t.median(), "median_rank_all_out": a.median(),
+            "share_outside_top10_tactical": (t > 10).mean(),
+            "share_outside_top10_all_out": (a > 10).mean(),
+            "u_statistic": result.statistic, "p_value": result.pvalue}  # fmt: skip
+
