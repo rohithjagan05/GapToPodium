@@ -247,3 +247,36 @@ def test_venue_marked_i_is_indoor_even_when_the_flag_says_outdoor():
     item = {"mark": "12:59.77", "indoor": False,
             "venue": "Boston Univ. Track & Tennis Center, Boston, MA (USA) (i)"}
     assert wa._mark_row(seed, "5000m_m", "personal_best", item)["indoor"] is True
+
+def test_seeds_can_name_another_expected_country(tmp_path):
+    seed_file = tmp_path / "finalists.csv"
+    seed_file.write_text("athlete_name,sex,events,wa_id,country_code\n"
+                         "Neeraj CHOPRA,m,jt_m,1,PAK\n", encoding="utf-8")  # fmt: skip
+    (seed,) = wa.read_seeds(seed_file)
+    assert seed.country == "PAK"
+    other = {**NEERAJ, "basicData": {**NEERAJ["basicData"], "countryCode": "PAK"}}
+    competitors, problems = wa.scrape_profiles([seed], FakeFetcher({url("1"): page(other)}), tmp_path)
+    assert set(competitors) == {"1"} and problems == []
+
+
+def test_indian_seeds_still_default_to_ind():
+    assert wa.SeedAthlete("Neeraj Chopra", "m", ("jt_m",), "1").country == "IND"
+
+def test_races_come_from_results_by_year_outdoor_olympic_events_only():
+    seed = wa.SeedAthlete("Neeraj Chopra", "m", ("jt_m",), "14549089")
+    competitor = {"resultsByYear": {
+        "parameters": {"resultsByYear": 2026},
+        "resultsByEvent": [
+            {"discipline": "Javelin Throw", "indoor": None, "results": [
+                {"date": "19 JUN 2026", "competition": "Doha Meeting", "race": "F", "place": "4.",
+                 "mark": "85.69", "venue": "Suhaim bin Hamad Stadium, Doha (QAT)", "notLegal": False},
+                {"date": "30 JUL 2026", "competition": "XXIII Commonwealth Games", "race": "Q1",
+                 "place": "5.", "mark": "79.61", "venue": "Scotstoun Stadium, Glasgow (GBR)"},
+            ]},
+            {"discipline": "60 Metres", "indoor": True, "results": [{"mark": "6.90"}]},
+        ],
+    }}
+    races = wa.extract_races(seed, competitor)
+    assert [(r["event_key"], r["season"], r["mark_raw"], r["race"]) for r in races] == [
+        ("jt_m", 2026, "85.69", "F"), ("jt_m", 2026, "79.61", "Q1")]
+    assert not any(r["indoor"] for r in races)

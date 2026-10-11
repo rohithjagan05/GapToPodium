@@ -1,7 +1,7 @@
-"""World Athletics profile scraper for the athletes in data/seeds/india_athletes.csv.
+"""World Athletics profile scraper for the athletes in a seed file (default: Indian athletes).
 
 For each seeded athlete with a wa_id it downloads the profile page, saves the embedded
-__NEXT_DATA__ JSON to data/raw/wa/<run time>/<wa_id>.json (FR-5), and flags athletes whose
+__NEXT_DATA__ JSON to data/raw/<subdir>/<run time>/<wa_id>.json (FR-5), and flags athletes whose
 profile name or country does not match the seed (FR-6). It then extracts athletes.parquet
 (birth dates) and marks.parquet (personal bests, season bests and season-by-season progression)
 for senior Olympic disciplines. The site ignores the name part of the URL and uses only the
@@ -40,6 +40,8 @@ PROBLEM_COLUMNS = ["seed_name", "wa_id", "issue", "detail"]
 ATHLETE_COLUMNS = ["wa_id", "seed_name", "profile_name", "sex", "birth_date", "country_code"]
 MARK_COLUMNS = ["wa_id", "event_key", "kind", "season", "mark_raw", "date", "venue",
                 "competition", "wind", "indoor", "not_legal", "list_position"]  # fmt: skip
+RACE_COLUMNS = ["wa_id", "event_key", "season", "date", "mark_raw", "competition", "race", "place",
+                "indoor", "not_legal"]  # fmt: skip
 
 
 class PageFetcher(Protocol):
@@ -52,6 +54,7 @@ class SeedAthlete:
     sex: str
     events: tuple[str, ...]
     wa_id: str
+    country: str = "IND"  # the country the profile must show (finalists' seeds give their own)
 
 
 def read_seeds(path: Path = SEED_FILE) -> list[SeedAthlete]:
@@ -68,7 +71,9 @@ def read_seeds(path: Path = SEED_FILE) -> list[SeedAthlete]:
             logger.warning("%s: wa_id %r is not a number; skipped", row.athlete_name, wa_id)
             continue
         events = tuple(e.strip() for e in row.events.split(";") if e.strip())
-        athletes.append(SeedAthlete(row.athlete_name.strip(), row.sex.strip(), events, wa_id))
+        country = (getattr(row, "country_code", "") or "IND").strip()
+        athletes.append(SeedAthlete(row.athlete_name.strip(), row.sex.strip(), events, wa_id,
+                                    country))  # fmt: skip
     if blank:
         logger.info("%s seeded athletes have no wa_id yet; skipped", blank)
     for wa_id, count in Counter(a.wa_id for a in athletes).items():
@@ -126,7 +131,7 @@ def scrape_profiles(
     """Fetch each profile, save its JSON as out_dir/<wa_id>.json, and check name and country.
 
     Returns the competitor data per wa_id, and a list of problems: profile not found, no profile
-    data, name mismatch, or a country other than IND.
+    data, name mismatch, or a country other than the seed's.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     competitors: dict[str, dict] = {}
@@ -155,8 +160,8 @@ def scrape_profiles(
         issues = []
         if not names_match(seed.name, name):
             issues.append(_problem(seed, "name mismatch", name))
-        if country != "IND":
-            issues.append(_problem(seed, "country is not IND", str(country)))
+        if country != seed.country:
+            issues.append(_problem(seed, f"country is not {seed.country}", str(country)))
         problems.extend(issues)
         if issues:
             continue  # saved as evidence, but a profile that fails a check never feeds marks
@@ -181,7 +186,7 @@ def parse_wa_date(text: str | None) -> date | None:
     if not text:
         return None
     try:
-                # A calendar date, not a moment: pin it to UTC so no local-time conversion can creep in.
+        # A calendar date, not a moment: pin it to UTC so no local-time conversion can creep in.
         return datetime.strptime(text.strip().title(), "%d %b %Y").replace(tzinfo=UTC).date()
     except ValueError:
         return None
@@ -249,6 +254,34 @@ def extract_athlete(seed: SeedAthlete, competitor: dict) -> tuple[dict, list[dic
                                    season=item.get("season"), indoor=progression.get("indoor")))  # fmt: skip
     return athlete, marks
 
+def extract_races(seed: SeedAthlete, competitor: dict) -> list[dict]:
+    """Every race on the profile's results-by-year section (the current season), in Olympic events.
+
+    Junior and non-Olympic disciplines are skipped by the same rules as the marks. Indoor races
+    (flag or a venue ending in "(i)") and illegal marks are flagged, for the analysis to filter.
+    """
+    by_year = competitor.get("resultsByYear") or {}
+    season = _as_int((by_year.get("parameters") or {}).get("resultsByYear"))
+    rows = []
+    for event in by_year.get("resultsByEvent") or []:
+        code = wa_discipline_code(event.get("discipline") or "")
+        if code is None:
+            continue
+        for item in event.get("results") or []:
+            venue = item.get("venue") or ""
+            rows.append({
+                "wa_id": seed.wa_id,
+                "event_key": f"{code}_{seed.sex}",
+                "season": season,
+                "date": parse_wa_date(item.get("date")),
+                "mark_raw": item.get("mark"),
+                "competition": item.get("competition"),
+                "race": item.get("race"),
+                "place": item.get("place"),
+                "indoor": bool(event.get("indoor")) or venue.rstrip().endswith("(i)"),
+                "not_legal": bool(item.get("notLegal")),
+            })
+    return rows
 
 def extract_tables(
     seeds: Sequence[SeedAthlete], competitors: dict[str, dict]
@@ -273,10 +306,12 @@ def extract_tables(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m src.scrapers.world_athletics",
-        description="Save World Athletics profile JSON for seeded athletes into data/raw/wa/.",
+        description="Save World Athletics profile JSON for seeded athletes into data/raw/.",
     )
     parser.add_argument("--seeds", type=Path, default=SEED_FILE, help="seed CSV path")
     parser.add_argument("--limit", type=int, default=None, help="only the first N athletes")
+    parser.add_argument("--raw-subdir", default="wa",
+                        help="folder under data/raw/ for this run (default: %(default)s)")  # fmt: skip
     return parser
 
 
@@ -288,17 +323,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not seeds:
         logger.error("no seeded athletes with a wa_id; fill wa_id in %s", args.seeds)
         return 1
-    run_dir = RAW_WA_DIR / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    run_dir = RAW_DIR / args.raw_subdir / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    problems_file = RAW_DIR / f"{args.raw_subdir}_mismatches.csv"
     if run_dir.exists():
         raise FileExistsError(f"{run_dir} already exists; raw files are never overwritten")
     competitors, problems = scrape_profiles(seeds, Fetcher(), run_dir)
-    pd.DataFrame(problems, columns=PROBLEM_COLUMNS).to_csv(PROBLEMS_FILE, index=False)
+    pd.DataFrame(problems, columns=PROBLEM_COLUMNS).to_csv(problems_file, index=False)
     athletes, marks = extract_tables(seeds, competitors)
     athletes.to_parquet(run_dir / "athletes.parquet", index=False)
     marks.to_parquet(run_dir / "marks.parquet", index=False)
 
     print(f"\nSaved {len(competitors)} of {len(seeds)} profiles to {run_dir}")
-    print(f"Problems: {len(problems)} (listed in {PROBLEMS_FILE})")
+    print(f"Problems: {len(problems)} (listed in {problems_file})")
     for p in problems:
         print(f"  {p['seed_name']} ({p['wa_id']}): {p['issue']}: {p['detail']}")
     print("\nDisciplines seen (number of athletes):")
@@ -309,6 +345,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     with_birth = int(athletes["birth_date"].notna().sum())
     print(f"\nExtracted {len(athletes)} athletes ({with_birth} with a birth date) and "
           f"{len(marks)} marks: {marks['kind'].value_counts().to_dict()}")  # fmt: skip
+    if len(seeds) > 100:
+        return 0  # too many athletes to list one by one (e.g. the finalists' run)
     pbs = marks[(marks["kind"] == "personal_best") & ~marks["indoor"] & ~marks["not_legal"]]
     print("\nOutdoor personal bests in each athlete's seeded events:")
     for seed in seeds:
