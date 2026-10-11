@@ -2,13 +2,13 @@
 
 How far are India's best athletes from an Olympic medal in each athletics event, and which young athletes are on track to win one?
 
-This project collects 25 years of Olympic and World Championship results plus the current marks of 73 Indian athletes, models them in a cloud warehouse, and measures the gap to the podium in every event. Later phases add a trajectory model for juniors, an API, a dashboard, a GenAI assistant and a funding case.
+This project collects 25 years of Olympic and World Championship results, the world's top 100 in every Olympic event for five seasons, and the careers of 73 Indian athletes and 307 Olympic finalists. It models them in a cloud warehouse, measures the gap to the podium in every event, and tests why the gap exists. Later phases add a trajectory model for juniors, an API, a dashboard, a GenAI assistant and a funding case.
 
-> Status (October 2026): Phases 0 to 2 complete. Phase 3 (statistics) is next. See the [roadmap](#roadmap).
+> Status (October 2026): Phases 0 to 3 complete. Phase 4 (trajectory model) is next. See the [roadmap](#roadmap).
 
 ## First results
 
-For each event: India's best current mark (outdoor, legal, 2025 to 2026 seasons), the gap to the Olympic bronze threshold (the third-best podium mark, averaged over the last three Games), and World Athletics' own world-list rank for that mark. A negative gap means the mark is better than the threshold. Coverage: 41 of the 42 individual events on the Paris 2024 programme have a current Indian mark.
+For each event: India's best current mark (outdoor, legal, 2025 to 2026 seasons), the gap to the Olympic bronze threshold (the third-best podium mark, averaged over the last three Games), and World Athletics' own world-list rank for that mark. A negative gap means the mark is better than the threshold. Coverage: 38 of the 42 individual events on the Paris 2024 programme have a current Indian mark (a decathlete's marks no longer stand in for the men's discus, pole vault and 110 m hurdles; the women's marathon has no current Indian athlete).
 
 ### Events decided by all-out finals: the gap is a fair measure
 
@@ -37,9 +37,47 @@ In middle-distance, long-distance and road events, Olympic finals are often slow
 | Men's 5000 m | Gulveer Singh | 13:03.93 | 38 | -0.29% |
 | Men's 1500 m | Gulveer Singh | 3:36.58 | 188 | +0.41% |
 
-Parul Chaudhary and Gulveer Singh's 10,000 m sit just outside the world's top 10; in the 5000 m, 38 athletes ran faster than Gulveer that season. Phase 3 will replace the tactical-final threshold with medallists' season bests, a like-for-like comparison.
+Parul Chaudhary and Gulveer Singh's 10,000 m sit just outside the world's top 10; in the 5000 m, 38 athletes ran faster than Gulveer that season. Phase 3 tested whether medallists' season bests make a fairer threshold for these events: they don't, because medallists in tactical events often don't race fast times either (see below).
 
 These numbers are a snapshot: 2026 world ranks can change as the season goes on.
+
+## What the statistics say (Phase 3)
+
+Four questions, each answered from the data with a stated method. Full working in [`notebooks/phase3_analysis.ipynb`](notebooks/phase3_analysis.ipynb).
+
+### 1. How sure are the gaps?
+
+A single best mark can be a lucky day. Each event's best Indian athlete is also measured by their **repeatable level**, the mean of their best three races in 2026, with a **95% bootstrap confidence interval** (5,000 resamples of their races).
+
+![India's gap to the bronze threshold per event, with bootstrap intervals](docs/images/phase3_gaps.png)
+
+- On repeatable level, **no Indian athlete is clearly ahead of the bronze threshold**. Neeraj Chopra is level with it (-0.08%, interval -1.85% to +5.52% from four throws); Sreeshankar is next (+0.76%).
+- The single best flatters most athletes, and some bests are out of date: Annu Rani's 62.59 (2025) gives a 2.7% gap, her 2026 level 11.3%.
+- Consistency varies widely: Vishal Thennarasu's 400 m interval spans under one percentage point (12 races), Tanya Chaudhary's hammer about nine.
+
+### 2. Why tactical events need a different measure (H1, supported)
+
+Olympic distance finals are slow and tactical, so final-race bronze marks understate medal level. Using medallists' **season bests** instead doesn't fix it: the 2024 Olympic 5000 m champion's best time all season ranked 93rd in the world. Matching 373 of 379 podium finishers (2016-2024) to that season's world toplist:
+
+![Olympic medallists by season-best world rank, tactical vs all-out events](docs/images/phase3_medallist_ranks.png)
+
+**22.6% of tactical-event medallists ranked outside the world top 10 that season, against 3.2% in all-out events** (one-sided Mann-Whitney U, p < 0.0001). In jumps, throws, sprints and hurdles a medallist is almost always a top-10 performer; in middle distance, long distance and road events about one in four is not. World rank, not a time gap, is the measure there, and a rank just outside the top 10 is a more realistic medal position in those events than in all-out ones.
+
+### 3. Do Indian athletes develop more slowly? (H2, not supported)
+
+Year-on-year improvement between back-to-back season bests at ages 18-24, one median per athlete: **India 1.74% (59 athletes), 2024 Olympic finalists 1.36% (283 athletes)**; one-sided Mann-Whitney U, p = 0.95.
+
+![Yearly improvement at ages 18-24, India vs 2024 finalists](docs/images/phase3_improvement.png)
+
+Indian athletes don't improve more slowly, and they peak at the same age (median 25 vs 26). Yet their repeatable levels are 3-10% behind bronze. Since a percentage is relative to the starting level, the evidence points to **a gap that already exists by age 18** and is carried through the career, which suggests investing earlier, in junior development. Phase 4's age curves test this directly.
+
+### 4. Depth is growing
+
+![Indian entries in the world top 100 across all 42 Olympic events](docs/images/phase3_india_top100.png)
+
+Indian entries in the world top-100 lists rose from 34 (2016) to 46 (2024) and 58 in the 2026 season so far.
+
+**Caveats.** Indian race data covers one season, so intervals are wide for athletes with few races, and their better end is capped at the single best mark. Some athletes appear in several Games, so H1's observations are not fully independent. The Indian group in H2 is mostly athletes who already reached the Olympics or Asian Games, and event mix differs between groups.
 
 ## How it works
 
@@ -47,18 +85,20 @@ These numbers are a snapshot: 2026 world ranks can change as the season goes on.
 flowchart LR
     A[Olympedia<br/>Olympics 2000-2024] --> F
     B[Wikipedia<br/>World Championships 2013-2025] --> F
-    C[World Athletics<br/>73 Indian athlete profiles] --> F
+    C[World Athletics<br/>Indian and finalist profiles,<br/>world toplists] --> F
     F[Polite fetcher<br/>cache, delays, back-off] --> S[Scrapers]
     S --> R[Raw Parquet and JSON<br/>timestamped, never overwritten]
     R --> V[Validation]
     V --> BQ[BigQuery raw]
     BQ --> D[dbt staging views]
     D --> M[dbt marts<br/>threshold, India best, gap]
+    M --> N[Notebook + tested analysis code<br/>bootstrap, hypothesis tests, charts]
 ```
 
 - **Collection (Python):** three scrapers share one fetcher that caches every page, waits between requests to each site, backs off when a site refuses (HTTP 429 or 202), and only ever caches real pages.
 - **Validation:** one command checks all sources together: medallists have marks, gold beats bronze, no mark is better than the world record, no duplicate athletes, every athlete is Indian. It stops the pipeline if anything fails.
-- **Warehouse (BigQuery + dbt):** raw tables load into BigQuery; dbt builds four staging views and three marts, with 34 data tests and a lineage graph.
+- **Warehouse (BigQuery + dbt):** raw tables load into BigQuery; dbt builds five staging views and three marts, with 40 data tests and a lineage graph.
+- **Analysis (Python):** statistics live in tested functions (`src/analysis.py`, `src/charts.py`); the notebook calls them and tells the story.
 
 ![dbt lineage graph: raw sources to staging views to marts](docs/images/lineage.png)
 
@@ -68,7 +108,8 @@ flowchart LR
 | --- | --- | --- |
 | [Olympedia](https://www.olympedia.org) | Olympic results 2000-2024, every athlete in every individual event | Unofficial volunteer site; scraped slowly and cached |
 | [Wikipedia](https://en.wikipedia.org/wiki/2023_World_Athletics_Championships) | World Championship podiums 2013-2025 | Secondary source; a fixed random sample of 10 marks matched official results ([check](docs/worlds_crosscheck.csv)). Text is CC BY-SA 4.0 |
-| [World Athletics](https://worldathletics.org) | Indian athletes' personal bests, season bests, season-by-season progression, birth dates, world-list positions | Data embedded in each profile page; every athlete ID was copied from a real profile and checked against name and country |
+| [World Athletics](https://worldathletics.org) profiles | Indian athletes and 2024 Olympic finalists: personal bests, season-by-season progression, this season's races, birth dates, world-list positions | Data embedded in each profile page; every ID comes from a real profile link and is checked against name and country |
+| [World Athletics](https://worldathletics.org/records/toplists) toplists | World top 100 per Olympic event, 2016, 2021, 2024, 2025, 2026 (outdoor, one season best per athlete) | Server-rendered HTML tables; Tokyo 2020 is the 2021 season |
 
 ## Run it yourself
 
@@ -82,7 +123,7 @@ make setup
 cp .env.example .env               # then set CONTACT_EMAIL (sent in the scrapers' User-Agent)
 
 # 2. Check everything offline
-make check                         # ruff + 239 tests, no internet needed
+make check                         # ruff + 276 tests, no internet needed
 
 # 3. Collect and validate the data (Phase 1)
 make phase1                        # scrapers, then validation; cached pages make reruns fast
@@ -91,14 +132,19 @@ make phase1                        # scrapers, then validation; cached pages mak
 gcloud auth application-default login
 make load                          # validates first, then loads 6 raw tables
 make dbt-build                     # builds and tests every dbt model
+
+# 5. Analysis (Phase 3)
+make toplists                      # world top 100 per event and season
+make finalists                     # 2024 Olympic finalists' profiles (slow: one page each)
+jupyter notebook notebooks/phase3_analysis.ipynb
 ```
 
 Run `make help` for every command.
 
 ## Data quality and testing
 
-- **239 offline Python tests**, built on trimmed copies of real pages, so every tricky case found in the wild stays fixed: a DNF finalist, an annulled gold, a shared bronze with two different marks, an indoor mark filed as outdoor.
-- **34 dbt data tests** on the warehouse, including one that checks the gap mart has exactly one row for every event at the latest Games.
+- **276 offline Python tests**, built on trimmed copies of real pages, so every tricky case found in the wild stays fixed: a DNF finalist, an annulled gold, a shared bronze with two different marks, an indoor mark filed as outdoor.
+- **40 dbt data tests** on the warehouse, including one that checks the gap mart has exactly one row for every event at the latest Games.
 - **Cross-source validation** before every load.
 - **One parser of record:** marks are converted to numbers once, by a tested Python function, and loaded beside the original text.
 
@@ -107,17 +153,20 @@ A few things the checks caught along the way:
 - Olympedia's women's 100 m hurdles tables had no marks at all in any Games; marks are now read from each round's own table.
 - Wikipedia keeps annulled results in pink rows and writes some road times as `1:26.34` for 1 hour 26 minutes 34 seconds.
 - An Indian 5000 m best filed as outdoor had been run indoors; the venue's "(i)" now decides.
+- A decathlete's discus and pole vault marks were posing as India's best in those events; combined-event athletes now count only in their combined event.
+- Every medallist matched to a toplist season best passes a logic check: a season best can't be worse than the same athlete's Olympic mark that season.
 - 19 of 22 World Athletics IDs generated by an AI assistant loaded athletes from other countries; the name and country checks caught all of them, and every ID was looked up again by hand.
 
 ## Project structure
 
 ```
-src/            fetcher, mark parser, event maps, scrapers, validation, BigQuery loader
+src/            fetcher, mark parser, event maps, scrapers, validation, BigQuery loader, analysis, charts
 dbt/            dbt project: staging views, marts, tests, BigQuery profile
 tests/          offline Python tests and real-page fixtures
 scripts/        exploration helpers used to inspect each source before writing parsers
-data/seeds/     hand-verified list of Indian athletes and their World Athletics IDs
-docs/           cross-check sheet and images
+notebooks/      Phase 3 analysis notebook
+data/seeds/     hand-verified Indian athletes; 2024 Olympic finalists matched from toplists
+docs/           cross-check sheet and chart images
 ```
 
 ## Roadmap
@@ -127,8 +176,8 @@ docs/           cross-check sheet and images
 | 0 | Setup: repository, environment, Google Cloud | Done |
 | 1 | Data acquisition: Olympedia, World Championships, World Athletics, validation | Done |
 | 2 | Warehouse and transformation: BigQuery, dbt, gap-to-podium marts | Done |
-| 3 | Statistics: confidence intervals, hypothesis tests, fair comparisons for tactical events | Next |
-| 4 | Trajectory model for juniors (mixed-effects, MLflow, backtest) | Planned |
+| 3 | Statistics: bootstrap intervals, two hypothesis tests, fair comparisons for tactical events | Done |
+| 4 | Trajectory model for juniors (mixed-effects, MLflow, backtest) | Next |
 | 5 | Production: FastAPI, Docker, Prefect, PySpark, Cloud Run | Planned |
 | 6 | Power BI dashboard | Planned |
 | 7 | GenAI assistant: RAG, LangGraph agent, LoRA fine-tuning | Planned |
