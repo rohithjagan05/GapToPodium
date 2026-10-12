@@ -8,8 +8,13 @@ threshold, where 100 means bronze level and a higher number is always better.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+
+from src.analysis import season_bests
+from src.scrapers.world_athletics import read_seeds
 
 AGE_RANGE = (15, 40)  # ages outside this are almost certainly wrong birth dates or seasons
 TRAJECTORY_COLUMNS = ["wa_id", "event_key", "season", "age", "mark_value", "higher_is_better",
@@ -45,3 +50,57 @@ def age_aligned(sbs: pd.DataFrame, birth_years: dict[str, int], thresholds: dict
                                                 df["higher_is_better"]))  # fmt: skip
     df = df.sort_values(["wa_id", "event_key", "season"]).reset_index(drop=True)
     return df[TRAJECTORY_COLUMNS]
+
+
+def pick_thresholds(fair: pd.DataFrame) -> pd.DataFrame:
+    """One bronze threshold per event: the medallists' season-best threshold where Phase 3 has one.
+
+    Trajectories are made of season bests, so the like-for-like threshold is the medallists'
+    season bests (sb_threshold). Events without one fall back to the final's bronze mark
+    (bronze_threshold); the source column says which was used.
+    """
+    use_sb = fair["sb_threshold"].notna()
+    return pd.DataFrame({
+        "event_key": fair["event_key"],
+        "threshold": fair["sb_threshold"].where(use_sb, fair["bronze_threshold"]),
+        "source": np.where(use_sb, "medallists' season bests", "final's bronze mark"),
+    }).dropna(subset=["threshold"]).reset_index(drop=True)  # fmt: skip
+
+
+def latest_run(raw_subdir: Path) -> Path:
+    """The newest World Athletics run folder (timestamped names sort by time) with marks in it."""
+    runs = [p for p in raw_subdir.glob("*") if (p / "marks.parquet").exists()]
+    if not runs:
+        raise FileNotFoundError(f"no run with marks.parquet in {raw_subdir}")
+    return max(runs)
+
+
+def load_group(run_dir: Path, seed_file: Path,
+               exclude_country: str | None = None) -> tuple[pd.DataFrame, dict[str, int]]:  # fmt: skip
+    """Season bests in each athlete's own seeded events, and birth years, from one scrape run.
+
+    exclude_country drops athletes of that country (Indian athletes are kept out of the
+    finalists group, as in Phase 3).
+    """
+    athletes = pd.read_parquet(run_dir / "athletes.parquet")
+    if exclude_country:
+        athletes = athletes[athletes["country_code"] != exclude_country]
+    keep = set(athletes["wa_id"])
+    events = {s.wa_id: set(s.events) for s in read_seeds(seed_file) if s.wa_id in keep}
+    births = {w: pd.Timestamp(d).year for w, d in zip(athletes["wa_id"], athletes["birth_date"])
+              if pd.notna(d)}  # fmt: skip
+    sbs = season_bests(pd.read_parquet(run_dir / "marks.parquet"), events)
+    return sbs, births
+
+
+def level_by_age(traj: pd.DataFrame) -> pd.DataFrame:
+    """Per age: how many athletes, and the median and middle half of their performance index.
+
+    An athlete seeded in two events counts once per age, at their better index that season, so
+    the summary describes athletes, not athlete-events.
+    """
+    per_athlete = traj.groupby(["wa_id", "age"])["perf_index"].max().reset_index()
+    out = per_athlete.groupby("age")["perf_index"].agg(
+        athletes="count", median="median",
+        q25=lambda s: s.quantile(0.25), q75=lambda s: s.quantile(0.75))
+    return out.reset_index()
