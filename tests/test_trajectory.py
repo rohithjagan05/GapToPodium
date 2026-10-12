@@ -154,3 +154,35 @@ def test_mean_curves_give_both_groups_at_every_model_age():
     assert len(curves) == 2 * 15  # ages 16-30
     at18 = curves[curves["age"] == 18].set_index("group")["perf_index"]
     assert at18["India"] < at18["Finalists"]
+
+
+
+def test_event_families_group_similar_events():
+    assert tr.event_family("110mh_m") == tr.event_family("100m_w") == "sprints and hurdles"
+    assert tr.event_family("marathon_w") == tr.event_family("1500m_m") == "endurance"
+    assert tr.event_family("jt_m") == "throws"
+
+
+def test_robustness_refits_each_subset_and_skips_ones_too_small_to_fit():
+    out = tr.robustness(_simulated(gap=-3.0)).set_index("subset")
+    assert list(out.index) == ["all events", "jumps", "men", "women", "ages 16-28",
+                               "cubic age curve"]
+    assert out.loc["women", "note"] == "too few lines to fit"  # the made-up careers are all men
+    assert out.loc["all events", "gap_low"] < 3.0 < out.loc["all events", "gap_high"]
+    assert out.loc["jumps", "gap_at_18"] == pytest.approx(out.loc["all events", "gap_at_18"])
+    assert out.loc["ages 16-28", "converged"]
+    assert out.loc["all events", "optimizer"] in {"lbfgs", "powell"}
+    # the simulated curve is quadratic, so a cubic term changes the gap at 18 very little
+    assert out.loc["cubic age curve", "gap_at_18"] == pytest.approx(
+        out.loc["all events", "gap_at_18"], abs=0.5)
+
+
+def test_variance_parts_and_residuals_look_like_the_simulation():
+    frame = _simulated()
+    result = tr.fit_trajectory_model(frame)
+    parts = tr.variance_parts(result)
+    assert parts["sd_level_at_18"] == pytest.approx(2.0, abs=0.6)  # simulated with sd 2
+    assert parts["sd_season_noise"] == pytest.approx(0.8, abs=0.2)  # simulated with sd 0.8
+    check = tr.residual_check(result, frame)
+    assert set(check["group"]) == {"India", "Finalists"}
+    assert check["mean"].abs().max() < 0.6  # the right curve shape leaves no pattern by age

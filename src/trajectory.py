@@ -8,13 +8,16 @@ threshold, where 100 means bronze level and a higher number is always better.
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from src.analysis import season_bests
+from src.events import DISCIPLINES
 from src.scrapers.world_athletics import read_seeds
+from src.validate import discipline_of
 
 AGE_RANGE = (15, 40)  # ages outside this are almost certainly wrong birth dates or seasons
 TRAJECTORY_COLUMNS = ["wa_id", "event_key", "season", "age", "mark_value", "higher_is_better",
@@ -112,6 +115,7 @@ def level_by_age(traj: pd.DataFrame) -> pd.DataFrame:
 BASE_AGE = 18  # ages are measured from 18, so the group difference in the model is the gap at 18
 MODEL_AGES = (16, 30)  # development and peak years; later seasons add decline, not development
 FORMULA = "perf_index ~ india * (years + I(years ** 2))"
+CUBIC_FORMULA = "perf_index ~ india * (years + I(years ** 2) + I(years ** 3))"  # robustness only
 EFFECT_NAMES = {"india": "gap at 18 (points)",
                 "india:years": "difference in improvement per year at 18 (points)",
                 "india:I(years ** 2)": "difference in curvature (points per year squared)"}
@@ -130,19 +134,21 @@ def model_frame(india: pd.DataFrame, finalists: pd.DataFrame,
                        unit=both["wa_id"].astype(str) + "|" + both["event_key"])  # fmt: skip
 
 
-def fit_trajectory_model(frame: pd.DataFrame):
+def fit_trajectory_model(frame: pd.DataFrame, formula: str = FORMULA):
     """Mixed-effects model of performance index on age, Indian athletes against finalists.
 
     Fixed part: each group's average curve (a level at 18, a yearly improvement and a bend, so the
     curve can flatten at the peak). Random part: every athlete-event gets its own level and its
     own improvement rate, so the model compares athletes with their own earlier seasons rather
-    than whichever athletes happen to have a mark at each age. Fitted by REML.
+    than whichever athletes happen to have a mark at each age. Fitted by REML. The optimizer that
+    produced the result is kept as result.optimizer.
     """
     import statsmodels.formula.api as smf
 
-    model = smf.mixedlm(FORMULA, frame, groups=frame["unit"], re_formula="~years")
+    model = smf.mixedlm(formula, frame, groups=frame["unit"], re_formula="~years")
     for method in ("lbfgs", "powell"):  # powell is slower but steadier if lbfgs does not converge
         result = model.fit(reml=True, method=method)
+        result.optimizer = method
         if result.converged:
             return result
     return result
@@ -165,3 +171,79 @@ def mean_curves(result, ages: tuple[int, int] = MODEL_AGES) -> pd.DataFrame:
     grid["perf_index"] = result.predict(grid)
     grid["group"] = np.where(grid["india"] == 1, "India", "Finalists")
     return grid[["group", "age", "perf_index"]]
+
+
+
+# --- robustness and diagnostics ----------------------------------------------------------------
+
+FAMILIES = {"sprints": "sprints and hurdles", "hurdles": "sprints and hurdles",
+            "middle_distance": "endurance", "long_distance": "endurance", "road": "endurance",
+            "jumps": "jumps", "throws": "throws", "combined": "combined events"}  # fmt: skip
+MIN_LINES = 8  # fewer athlete-event lines than this in either group: too few to fit, not reported
+
+
+def event_family(event_key: str) -> str:
+    """Broad event family, so each subset still has enough Indian athletes to fit."""
+    return FAMILIES[DISCIPLINES[discipline_of(event_key)][0]]
+
+
+def robustness(frame: pd.DataFrame, min_lines: int = MIN_LINES) -> pd.DataFrame:
+    """Refit the model on subsets (each event family, each sex, ages 16-28) and with a cubic curve.
+
+    If the gap at 18 has the same sign and a similar size in every row, it is not an artefact of
+    one event group, the age window or the curve's shape. Warnings from a fit (for example a
+    random-effects variance at its boundary, or a first optimizer that failed before the second
+    succeeded) are kept in the note column, and the optimizer that produced the result is shown.
+    """
+    from statsmodels.tools.sm_exceptions import ConvergenceWarning
+
+    family = frame["event_key"].map(event_family)
+    sex = frame["event_key"].str.rsplit("_", n=1).str[1]
+    subsets = {"all events": frame}
+    subsets.update({name: frame[family == name] for name in sorted(family.unique())})
+    subsets.update({"men": frame[sex == "m"], "women": frame[sex == "w"],
+                    "ages 16-28": frame[frame["age"] <= 28], "cubic age curve": frame})  # fmt: skip
+    rows = []
+    for name, sub in subsets.items():
+        formula = CUBIC_FORMULA if name == "cubic age curve" else FORMULA
+        lines = sub.groupby("india")["unit"].nunique()
+        row = {"subset": name, "indian_lines": int(lines.get(1, 0)),
+               "finalist_lines": int(lines.get(0, 0))}  # fmt: skip
+        if min(row["indian_lines"], row["finalist_lines"]) < min_lines:
+            rows.append({**row, "note": "too few lines to fit"})
+            continue
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ConvergenceWarning)
+            result = fit_trajectory_model(sub, formula)
+        effects = group_effects(result).set_index("term")
+        notes = sorted({str(w.message).split(".")[0] for w in caught})
+        rows.append({**row,
+                     "gap_at_18": -effects.loc["india", "estimate"],
+                     "gap_low": -effects.loc["india", "ci_high"],
+                     "gap_high": -effects.loc["india", "ci_low"],
+                     "slope_diff": effects.loc["india:years", "estimate"],
+                     "slope_low": effects.loc["india:years", "ci_low"],
+                     "slope_high": effects.loc["india:years", "ci_high"],
+                     "converged": bool(result.converged), "optimizer": result.optimizer,
+                     "note": "; ".join(notes)})  # fmt: skip
+    return pd.DataFrame(rows)
+
+
+def variance_parts(result) -> dict:
+    """How much athletes differ from each other, and how noisy single seasons are (in points)."""
+    cov = result.cov_re
+    return {"sd_level_at_18": float(np.sqrt(cov.iloc[0, 0])),
+            "sd_yearly_improvement": float(np.sqrt(cov.iloc[1, 1])),
+            "corr_level_improvement": float(cov.iloc[0, 1] / np.sqrt(cov.iloc[0, 0] * cov.iloc[1, 1])),
+            "sd_season_noise": float(np.sqrt(result.scale))}  # fmt: skip
+
+
+def residual_check(result, frame: pd.DataFrame) -> pd.DataFrame:
+    """The model's leftover errors by group and age.
+
+    A mean near 0 at every age means the curve's shape fits; a run of positive or negative means
+    at some ages would show the curve is the wrong shape there.
+    """
+    res = frame.assign(residual=np.asarray(result.resid),
+                       group=np.where(frame["india"] == 1, "India", "Finalists"))  # fmt: skip
+    return res.groupby(["group", "age"])["residual"].agg(["count", "mean", "std"]).reset_index()
