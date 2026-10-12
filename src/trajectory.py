@@ -104,3 +104,64 @@ def level_by_age(traj: pd.DataFrame) -> pd.DataFrame:
         athletes="count", median="median",
         q25=lambda s: s.quantile(0.25), q75=lambda s: s.quantile(0.75))
     return out.reset_index()
+
+
+
+# --- mixed-effects trajectory model ------------------------------------------------------------
+
+BASE_AGE = 18  # ages are measured from 18, so the group difference in the model is the gap at 18
+MODEL_AGES = (16, 30)  # development and peak years; later seasons add decline, not development
+FORMULA = "perf_index ~ india * (years + I(years ** 2))"
+EFFECT_NAMES = {"india": "gap at 18 (points)",
+                "india:years": "difference in improvement per year at 18 (points)",
+                "india:I(years ** 2)": "difference in curvature (points per year squared)"}
+
+
+def model_frame(india: pd.DataFrame, finalists: pd.DataFrame,
+                ages: tuple[int, int] = MODEL_AGES) -> pd.DataFrame:  # fmt: skip
+    """Both groups' trajectories in one table for the model.
+
+    india is 1 for Indian athletes and 0 for finalists; years is age minus 18; unit is one
+    athlete in one event (an athlete's 5000 m and 10,000 m are separate lines).
+    """
+    both = pd.concat([india.assign(india=1), finalists.assign(india=0)], ignore_index=True)
+    both = both[both["age"].between(*ages)]
+    return both.assign(years=both["age"] - BASE_AGE,
+                       unit=both["wa_id"].astype(str) + "|" + both["event_key"])  # fmt: skip
+
+
+def fit_trajectory_model(frame: pd.DataFrame):
+    """Mixed-effects model of performance index on age, Indian athletes against finalists.
+
+    Fixed part: each group's average curve (a level at 18, a yearly improvement and a bend, so the
+    curve can flatten at the peak). Random part: every athlete-event gets its own level and its
+    own improvement rate, so the model compares athletes with their own earlier seasons rather
+    than whichever athletes happen to have a mark at each age. Fitted by REML.
+    """
+    import statsmodels.formula.api as smf
+
+    model = smf.mixedlm(FORMULA, frame, groups=frame["unit"], re_formula="~years")
+    for method in ("lbfgs", "powell"):  # powell is slower but steadier if lbfgs does not converge
+        result = model.fit(reml=True, method=method)
+        if result.converged:
+            return result
+    return result
+
+
+def group_effects(result) -> pd.DataFrame:
+    """The three India-vs-finalists terms with 95% confidence intervals and p-values."""
+    ci = result.conf_int()
+    rows = [{"term": term, "meaning": meaning, "estimate": result.params[term],
+             "ci_low": ci.loc[term, 0], "ci_high": ci.loc[term, 1], "p_value": result.pvalues[term]}
+            for term, meaning in EFFECT_NAMES.items()]  # fmt: skip
+    return pd.DataFrame(rows)
+
+
+def mean_curves(result, ages: tuple[int, int] = MODEL_AGES) -> pd.DataFrame:
+    """Each group's average performance index at every age, from the model's fixed part."""
+    grid = pd.DataFrame([(a, g) for g in (0, 1) for a in range(ages[0], ages[1] + 1)],
+                        columns=["age", "india"])  # fmt: skip
+    grid["years"] = grid["age"] - BASE_AGE
+    grid["perf_index"] = result.predict(grid)
+    grid["group"] = np.where(grid["india"] == 1, "India", "Finalists")
+    return grid[["group", "age", "perf_index"]]

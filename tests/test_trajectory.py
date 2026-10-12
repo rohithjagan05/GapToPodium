@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -97,3 +98,59 @@ def test_level_by_age_counts_each_athlete_once_per_age():
     assert out.loc[18, "athletes"] == 2  # athlete a's two events count once, at 94
     assert out.loc[18, "median"] == pytest.approx(93.0)
     assert out.loc[19, "athletes"] == 1
+
+
+
+def _simulated(n_per_group=60, gap=-3.0, slope_diff=0.0, seed=1):
+    """Made-up careers with a known gap at 18 and a known difference in yearly improvement."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for india in (0, 1):
+        for i in range(n_per_group):
+            level = 91.0 + india * gap + rng.normal(0, 2)
+            slope = 1.5 + india * slope_diff + rng.normal(0, 0.3)
+            start = int(rng.integers(16, 21))
+            for age in range(start, start + 8):
+                years = age - 18
+                index = level + slope * years - 0.05 * years**2 + rng.normal(0, 0.8)
+                rows.append({"wa_id": f"sim-{india}-{i}", "event_key": "lj_m", "age": age,
+                             "perf_index": index, "india": india})  # fmt: skip
+    frame = pd.DataFrame(rows)
+    return tr.model_frame(frame[frame["india"] == 1].drop(columns="india"),
+                          frame[frame["india"] == 0].drop(columns="india"))
+
+
+def test_model_frame_measures_age_from_18_and_keeps_the_model_ages():
+    india = pd.DataFrame({"wa_id": ["1", "1"], "event_key": ["lj_m", "lj_m"], "age": [18, 33],
+                          "perf_index": [90.0, 95.0]})  # fmt: skip
+    finalists = pd.DataFrame({"wa_id": ["2"], "event_key": ["lj_m"], "age": [21],
+                              "perf_index": [96.0]})  # fmt: skip
+    frame = tr.model_frame(india, finalists)
+    assert frame["age"].tolist() == [18, 21]  # 33 is outside 16-30
+    assert frame["years"].tolist() == [0, 3]
+    assert frame["india"].tolist() == [1, 0]
+    assert frame["unit"].tolist() == ["1|lj_m", "2|lj_m"]
+
+
+def test_model_recovers_a_known_gap_at_18_and_equal_improvement():
+    result = tr.fit_trajectory_model(_simulated(gap=-3.0, slope_diff=0.0))
+    effects = tr.group_effects(result).set_index("term")
+    gap = effects.loc["india"]
+    assert gap["ci_low"] < -3.0 < gap["ci_high"]
+    assert gap["ci_high"] < 0  # clearly behind at 18
+    slope = effects.loc["india:years"]
+    assert slope["ci_low"] < 0 < slope["ci_high"]  # no real difference in improvement
+
+
+def test_model_detects_slower_improvement_when_there_is_one():
+    result = tr.fit_trajectory_model(_simulated(gap=0.0, slope_diff=-0.6, seed=2))
+    slope = tr.group_effects(result).set_index("term").loc["india:years"]
+    assert slope["ci_high"] < 0
+
+
+def test_mean_curves_give_both_groups_at_every_model_age():
+    result = tr.fit_trajectory_model(_simulated())
+    curves = tr.mean_curves(result)
+    assert len(curves) == 2 * 15  # ages 16-30
+    at18 = curves[curves["age"] == 18].set_index("group")["perf_index"]
+    assert at18["India"] < at18["Finalists"]
