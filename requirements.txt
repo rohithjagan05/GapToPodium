@@ -25,3 +25,7 @@ ipykernel==7.4.0
 # Testing and code quality
 pytest==9.1.1
 ruff==0.16.10
+
+# Phase 4: modelling and experiment tracking
+scikit-learn==1.9.1
+mlflow==3.17.1

@@ -22,6 +22,7 @@ dbt_packages/
 logs/
 mlruns/
 mlartifacts/
+mlflow.db
 
 # OS files
 Thumbs.db
