@@ -2,9 +2,9 @@
 
 How far are India's best athletes from an Olympic medal in each athletics event, and which young athletes are on track to win one?
 
-This project collects 25 years of Olympic and World Championship results, the world's top 100 in every Olympic event for five seasons, and the careers of 73 Indian athletes and 307 Olympic finalists. It models them in a cloud warehouse, measures the gap to the podium in every event, and tests why the gap exists. Later phases add a trajectory model for juniors, an API, a dashboard, a GenAI assistant and a funding case.
+This project collects 25 years of Olympic and World Championship results, the world's top 100 in every Olympic event for five seasons, and the careers of 73 Indian athletes and 307 Olympic finalists. It models them in a cloud warehouse, measures the gap to the podium in every event, tests why the gap exists, and models athletes' careers to find when the gap appears and where India's athletes could be at the 2028 Olympics. Later phases add an API, a dashboard and a funding case.
 
-> Status (October 2026): Phases 0 to 3 complete. Phase 4 (trajectory model) is next. See the [roadmap](#roadmap).
+> Status (October 2026): Phases 0 to 4 complete. Phase 5 (production) is next. See the [roadmap](#roadmap).
 
 ## First results
 
@@ -79,6 +79,49 @@ Indian entries in the world top-100 lists rose from 34 (2016) to 46 (2024) and 5
 
 **Caveats.** Indian race data covers one season, so intervals are wide for athletes with few races, and their better end is capped at the single best mark. Some athletes appear in several Games, so H1's observations are not fully independent. The Indian group in H2 is mostly athletes who already reached the Olympics or Asian Games, and event mix differs between groups.
 
+## When the gap appears, and who could close it (Phase 4)
+
+Every season best becomes a **performance index**: the mark as a percentage of the event's bronze level (medallists' season bests at the last three Games), so 100 = bronze level, higher is always better, and all 42 events share one scale. That turns each athlete's career into a line of index against age: 72 Indian athletes and 305 athletes who made the 2024 Olympic finals (Indian finalists left out).
+
+### 1. The gap is already there at 18
+
+![Average career curves for India and 2024 finalists](docs/images/phase4_curves.png)
+
+A **mixed-effects model** fits one average curve per group plus each athlete's own level and improvement rate, so it compares athletes with their own earlier seasons instead of whoever happens to have a mark at each age. Ages 16-30, age measured from 18.
+
+- **At 18, Indian athletes are 4.9 points behind** (95% CI 3.0 to 6.7, p < 0.001). The raw medians say 3.2; the model's number is larger because it also counts athletes whose junior seasons are missing (the ones recorded at 18 were the better juniors).
+- **The gap is about 4 points at 16, 5 at 18 and 5-5.5 through the early 20s.** It is set before the development years and carried through them.
+- **Improvement after 18 is similar or slightly slower:** -0.3 points a year in the main model (p = 0.058), significant with a cubic curve (-0.66), for women (-0.58) and in throws (-1.30). Indian curves also flatten later, so over 18-24 the rates even out, which agrees with Phase 3's H2.
+
+**Robust:** the gap at 18 is positive in every refit: sprints and hurdles 3.8, jumps 3.9, men 4.5, women 5.4, ages 16-28 only 5.0, cubic curve 5.0. Exceptions are reported, not hidden: in throws the gap at 18 is not significant (junior throwers use lighter implements, which are excluded, so their early seasons are sparse) but they improve more slowly; endurance shows the largest gap (7.8) but that fit was unstable, so it gets no interval.
+
+**What it means:** India's problem is where its athletes start, not how they develop after 18. That points to youth development and talent identification. The data shows *when* the gap appears, not *why*.
+
+### 2. Which model can predict an athlete's future? (backtest)
+
+![Backtest: average miss per model](docs/images/phase4_backtest.png)
+
+Fit on seasons up to 2022, then predict the hidden 2023-2026 seasons (899 seasons of 292 athlete-events), split by time so no model sees the future. Five contenders, every run logged in **MLflow**:
+
+- **Gradient boosting wins**, missing by 1.96 points on average, and is best at every horizon. Its lead over the mixed model is real (0.43 points, 95% bootstrap CI 0.27 to 0.59, resampling whole athletes) and over the best simple rule too (0.38, CI 0.21 to 0.55).
+- **For Indian athletes alone the two models tie** (difference -0.05, CI -0.45 to 0.30).
+- The mixed model is the right tool for *explaining* (the gap at 18, with intervals) but a weaker *forecaster*: it smooths each career into one line and pulls athletes towards their group, so it underrates recent breakthroughs.
+- **Honest ranges:** boosting's 80% ranges come from its own misses in an earlier backtest inside the training years (split conformal prediction). In the backtest they held 82% of real values (the mixed model's held 86%). Built-in quantile boosting held only about half the real values on simulated careers, so it was not used. In the backtest the conformal ranges held 82% of real values (aim: 80%).
+
+### 3. Where India's athletes could be at LA 2028
+
+![2028 projections for India's active athletes](docs/images/phase4_projections.png)
+
+Gradient boosting, trained on every season, projects 44 active Indian athlete-events (a season in 2025 or 2026, at least two seasons on record) to 2028, each with an 80% range taken from its real backtest misses at the same horizon.
+
+- **Only Neeraj Chopra is projected at bronze level** (100.5, range 99.4 to 103.8). He will be 31, past the ages the model trained on, so this one is an extrapolation.
+- **Ten more athlete-events have a range that reaches 100:** Gulveer Singh (5000 m, 10,000 m and 1500 m), Rohit Yadav and Yash Vir Singh (javelin), Murali Sreeshankar (long jump), Pooja Singh (high jump), Vishal Thennarasu (400 m), Animesh Kujur (100 m) and Vikash Singh (20 km walk, just touching 100).
+- **The standout junior is Pooja Singh**, 19 in 2026, projected at 97.6 for age 21 (range 96.5 to 101.0).
+
+**Read these carefully.** A range reaching 100 means a medal-level season is plausible, not likely. Athletes over 30 in 2028 are flagged (hollow dots): training seasons stop at 30, so their projections are extrapolations. In tactical events, world rank still matters more than the index (see Phase 3).
+
+**Caveats.** The finalists group is selected on reaching the 2024 final, so their 2023-24 seasons were good by selection; every contender faced the same bias, so the comparison is fair, but all models lean pessimistic. Age is season minus birth year. Projections cover athletes in our seed list, not every Indian athlete.
+
 ## How it works
 
 ```mermaid
@@ -93,12 +136,15 @@ flowchart LR
     BQ --> D[dbt staging views]
     D --> M[dbt marts<br/>threshold, India best, gap]
     M --> N[Notebook + tested analysis code<br/>bootstrap, hypothesis tests, charts]
+    N --> T[Trajectory model and backtest<br/>mixed-effects, boosting, MLflow]
+    T --> P[2028 projections]
 ```
 
 - **Collection (Python):** three scrapers share one fetcher that caches every page, waits between requests to each site, backs off when a site refuses (HTTP 429 or 202), and only ever caches real pages.
 - **Validation:** one command checks all sources together: medallists have marks, gold beats bronze, no mark is better than the world record, no duplicate athletes, every athlete is Indian. It stops the pipeline if anything fails.
 - **Warehouse (BigQuery + dbt):** raw tables load into BigQuery; dbt builds five staging views and three marts, with 40 data tests and a lineage graph.
 - **Analysis (Python):** statistics live in tested functions (`src/analysis.py`, `src/charts.py`); the notebook calls them and tells the story.
+- **Modelling (Python):** career curves (`src/trajectory.py`, statsmodels), a time-based backtest of five models logged to MLflow (`src/backtest.py`, scikit-learn) and 2028 projections (`src/projection.py`).
 
 ![dbt lineage graph: raw sources to staging views to marts](docs/images/lineage.png)
 
@@ -123,7 +169,7 @@ make setup
 cp .env.example .env               # then set CONTACT_EMAIL (sent in the scrapers' User-Agent)
 
 # 2. Check everything offline
-make check                         # ruff + 276 tests, no internet needed
+make check                         # ruff + 302 tests, no internet needed
 
 # 3. Collect and validate the data (Phase 1)
 make phase1                        # scrapers, then validation; cached pages make reruns fast
@@ -137,13 +183,18 @@ make dbt-build                     # builds and tests every dbt model
 make toplists                      # world top 100 per event and season
 make finalists                     # 2024 Olympic finalists' profiles (slow: one page each)
 jupyter notebook notebooks/phase3_analysis.ipynb
+
+# 6. Career model, backtest and projections (Phase 4)
+jupyter notebook notebooks/phase4_trajectories.ipynb
+mlflow ui --backend-store-uri sqlite:///mlflow.db   # compare backtest runs at http://127.0.0.1:5000
 ```
 
 Run `make help` for every command.
 
 ## Data quality and testing
 
-- **276 offline Python tests**, built on trimmed copies of real pages, so every tricky case found in the wild stays fixed: a DNF finalist, an annulled gold, a shared bronze with two different marks, an indoor mark filed as outdoor.
+- **302 offline Python tests**, built on trimmed copies of real pages, so every tricky case found in the wild stays fixed: a DNF finalist, an annulled gold, a shared bronze with two different marks, an indoor mark filed as outdoor.
+- **Models tested on simulated careers with known answers:** the mixed model must recover a planted gap and a planted slower improvement; the backtest must never leak a future season; prediction ranges must hold about 80% of real values.
 - **40 dbt data tests** on the warehouse, including one that checks the gap mart has exactly one row for every event at the latest Games.
 - **Cross-source validation** before every load.
 - **One parser of record:** marks are converted to numbers once, by a tested Python function, and loaded beside the original text.
@@ -164,7 +215,7 @@ src/            fetcher, mark parser, event maps, scrapers, validation, BigQuery
 dbt/            dbt project: staging views, marts, tests, BigQuery profile
 tests/          offline Python tests and real-page fixtures
 scripts/        exploration helpers used to inspect each source before writing parsers
-notebooks/      Phase 3 analysis notebook
+notebooks/      Phase 3 analysis and Phase 4 trajectory notebooks
 data/seeds/     hand-verified Indian athletes; 2024 Olympic finalists matched from toplists
 docs/           cross-check sheet and chart images
 ```
@@ -177,11 +228,10 @@ docs/           cross-check sheet and chart images
 | 1 | Data acquisition: Olympedia, World Championships, World Athletics, validation | Done |
 | 2 | Warehouse and transformation: BigQuery, dbt, gap-to-podium marts | Done |
 | 3 | Statistics: bootstrap intervals, two hypothesis tests, fair comparisons for tactical events | Done |
-| 4 | Trajectory model for juniors (mixed-effects, MLflow, backtest) | Next |
-| 5 | Production: FastAPI, Docker, Prefect, PySpark, Cloud Run | Planned |
+| 4 | Career model, backtest and 2028 projections (mixed-effects, gradient boosting, MLflow) | Done |
+| 5 | Production: FastAPI, Docker, Prefect, Cloud Run | Next |
 | 6 | Power BI dashboard | Planned |
-| 7 | GenAI assistant: RAG, LangGraph agent, LoRA fine-tuning | Planned |
-| 8 | Business case: funding model and stakeholder deck | Planned |
+| 7 | Business case: funding model and stakeholder deck | Planned |
 
 ## License
 
