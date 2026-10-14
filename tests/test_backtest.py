@@ -73,7 +73,8 @@ def test_backtest_on_simulated_careers_ranks_contenders_sensibly():
     assert scores.loc["mixed_model", "mae"] < scores.loc["fixed_curve", "mae"]
     # an honest 80% interval should hold roughly 80% of the real values
     assert 0.65 < scores.loc["mixed_model", "coverage_80"] < 0.95
-    assert np.isnan(scores.loc["boosting", "coverage_80"])
+    assert 0.65 < scores.loc["boosting", "coverage_80"] < 0.95  # ranges learned from past misses
+    assert np.isnan(scores.loc["last_season", "coverage_80"])
 
 
 def test_score_is_zero_for_perfect_predictions():
@@ -81,7 +82,7 @@ def test_score_is_zero_for_perfect_predictions():
     for name in bt.CONTENDERS:
         preds[f"{name}_pred"] = preds["perf_index"]
     preds["mixed_low"], preds["mixed_high"] = preds["perf_index"] - 1, preds["perf_index"] + 1
-    scores = bt.score(preds)
+    scores = bt.score(preds)  # no boosting range given here: its coverage is NaN
     assert (scores["mae"] == 0).all() and (scores["bias"] == 0).all()
     assert scores.set_index("contender").loc["mixed_model", "coverage_80"] == 1.0
 
@@ -102,3 +103,26 @@ def test_every_contender_is_logged_to_mlflow_with_settings_and_errors(tmp_path):
     assert runs["metrics.mae"].notna().all()
     logged = list((tmp_path / "artifacts").rglob("*_predictions.csv"))
     assert len(logged) == len(bt.CONTENDERS)
+
+
+
+def test_range_offsets_are_percentiles_of_past_misses_per_horizon():
+    misses = pd.DataFrame({"horizon": [1] * 30 + [2] * 5, "miss": list(range(30)) + [100] * 5})
+    offsets = bt.range_offsets(misses)
+    assert offsets.loc[1, "low"] == pytest.approx(np.percentile(range(30), 10))
+    assert offsets.loc[1, "high"] == pytest.approx(np.percentile(range(30), 90))
+    # horizon 2 has only 5 misses, so it borrows all 35
+    assert offsets.loc[2, "high"] == pytest.approx(np.percentile(list(range(30)) + [100] * 5, 90))
+
+
+def test_mae_difference_is_zero_for_identical_contenders_and_detects_a_worse_one():
+    preds = bt.split_by_season(_careers())[1]
+    preds["good_pred"] = preds["perf_index"] + 0.5
+    preds["same_pred"] = preds["perf_index"] - 0.5
+    preds["bad_pred"] = preds["perf_index"] + 2.0
+    same = bt.mae_difference(preds, "good", "same")
+    assert same["difference"] == pytest.approx(0) and same["ci_low"] == pytest.approx(0)
+    worse = bt.mae_difference(preds, "bad", "good")
+    assert worse["difference"] == pytest.approx(1.5) and worse["ci_low"] > 0
+    india = bt.mae_difference(preds, "bad", "good", india=1)
+    assert india["seasons"] == int((preds["india"] == 1).sum())

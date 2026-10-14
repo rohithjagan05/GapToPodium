@@ -25,3 +25,17 @@ def test_every_chart_writes_a_png(tmp_path):
     assert all(p.exists() and p.stat().st_size > 5000 for p in paths)
     with open(paths[0], "rb") as handle:
         assert handle.read(8) == b"\x89PNG\r\n\x1a\n"
+
+
+
+def test_phase4_charts_write_pngs(tmp_path):
+    curves = pd.DataFrame({"group": ["India"] * 3 + ["Finalists"] * 3, "age": [17, 18, 19] * 2,
+                           "perf_index": [82.0, 84.4, 86.4, 86.7, 89.3, 91.6]})  # fmt: skip
+    scores = pd.DataFrame({"contender": ["last_season", "boosting", "mixed_model"],
+                           "mae": [2.62, 1.96, 2.39]})  # fmt: skip
+    proj = pd.DataFrame({"athlete": ["Athlete A", "Athlete B"], "event": ["jt_m", "lj_w"],
+                         "projected": [99.0, 93.5], "low": [96.0, 90.0], "high": [102.0, 97.0]})  # fmt: skip
+    paths = [charts.trajectory_chart(curves, tmp_path / "curves.png"),
+             charts.backtest_chart(scores, "boosting", tmp_path / "backtest.png"),
+             charts.projections_chart(proj, tmp_path / "proj.png")]
+    assert all(p.exists() and p.stat().st_size > 5000 for p in paths)

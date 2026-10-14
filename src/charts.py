@@ -139,3 +139,76 @@ def india_depth_chart(counts: pd.Series, path: Path) -> Path:
     return _finish(fig, ax, "More Indian athletes in the world top 100",
                    "Indian entries across the 42 Olympic events' world top-100 lists; "
                    "2026 season in progress", path)  # fmt: skip
+
+
+
+# --- Phase 4 ----------------------------------------------------------------------------------
+
+def trajectory_chart(curves: pd.DataFrame, path: Path) -> Path:
+    """Average performance index by age for India and 2024 finalists (mixed model's fixed part).
+
+    curves needs group ("India" / "Finalists"), age and perf_index (trajectory.mean_curves).
+    """
+    wide = curves.pivot(index="age", columns="group", values="perf_index")
+    fig, ax = _figure(6.5, 3.4)
+    ax.axhline(100, color=INK_2, linewidth=1, linestyle=(0, (4, 3)), zorder=1)
+    ax.text(wide.index.min(), 100.3, "bronze level (100)", fontsize=7, color=INK_2)
+    ax.grid(axis="y", color=GRID, linewidth=0.6, zorder=0)
+    for name, colour in (("Finalists", OTHER), ("India", INDIA)):
+        ax.plot(wide.index, wide[name], color=colour, linewidth=2, zorder=3)
+        ax.text(wide.index.max() + 0.3, wide[name].iloc[-1],
+                "2024 finalists" if name == "Finalists" else "India", fontsize=8, color=colour,
+                va="center")  # fmt: skip
+    at18 = wide.loc[18]
+    ax.vlines(18, at18["India"], at18["Finalists"], color=INK, linewidth=1.2, zorder=4)
+    ax.text(18.2, at18["India"] - 1.2, f"gap at 18: {at18['Finalists'] - at18['India']:.1f} points",
+            fontsize=8, color=INK, va="top")  # fmt: skip
+    ax.set_xlim(wide.index.min() - 0.5, wide.index.max() + 3)
+    ax.set_xlabel("Age", fontsize=8, color=INK_2)
+    ax.set_ylabel("Performance index (% of bronze level)", fontsize=8, color=INK_2)
+    return _finish(fig, ax, "India's gap is already there at 18, and it stays",
+                   "Average career curves from the mixed-effects model, ages 16-30", path)
+
+
+def backtest_chart(scores: pd.DataFrame, chosen: str, path: Path) -> Path:
+    """Mean absolute error of each contender on the hidden 2023-2026 seasons, best at the top."""
+    labels = {"last_season": "Same as last season", "age_trend": "Last season + age trend",
+              "fixed_curve": "Group curve only (plain regression)",
+              "boosting": "Gradient boosting", "mixed_model": "Mixed-effects model"}  # fmt: skip
+    df = scores.sort_values("mae", ascending=False)
+    fig, ax = _figure(6.5, 0.42 * len(df) + 1.0)
+    colours = [INDIA if c == chosen else NEUTRAL for c in df["contender"]]
+    bars = ax.barh([labels.get(c, c) for c in df["contender"]], df["mae"], color=colours,
+                   height=0.6, zorder=2)  # fmt: skip
+    ax.bar_label(bars, fmt="%.2f", fontsize=8, color=INK, padding=3)
+    ax.set_xticks([])
+    ax.tick_params(axis="y", labelsize=8, labelcolor=INK)
+    return _finish(fig, ax, "Gradient boosting predicts unseen seasons best",
+                   "Average miss in index points (lower is better); fit to 2022, predict 2023-2026",
+                   path)  # fmt: skip
+
+
+def projections_chart(proj: pd.DataFrame, path: Path, top: int = 15) -> Path:
+    """Projected 2028 index with its 80% range for the top projected Indian athlete-events.
+
+    proj needs athlete, event, projected, low, high (projection.project plus names).
+    """
+    df = proj.nlargest(top, "projected").iloc[::-1]
+    fig, ax = _figure(7, 0.3 * len(df) + 1.2)
+    y = np.arange(len(df))
+    ax.axvline(100, color=INK_2, linewidth=1, linestyle=(0, (4, 3)), zorder=1)
+    ax.grid(axis="x", color=GRID, linewidth=0.6, zorder=0)
+    ax.hlines(y, df["low"], df["high"], color=INDIA, linewidth=2.5, alpha=0.35, zorder=2,
+              label="80% range")  # fmt: skip
+    older = df["beyond_trained_ages"].to_numpy() if "beyond_trained_ages" in df else np.zeros(len(df), bool)
+    ax.scatter(df["projected"][~older], y[~older], s=30, color=INDIA, zorder=3, label="Projected 2028")
+    if older.any():
+        ax.scatter(df["projected"][older], y[older], s=30, facecolors=SURFACE, edgecolors=INDIA,
+                   linewidths=1.4, zorder=3, label="Over 30 in 2028 (less reliable)")  # fmt: skip
+    ax.set_yticks(y, [f"{a} - {event_label(e)}" for a, e in zip(df["athlete"], df["event"])],
+                  fontsize=7.5, color=INK)  # fmt: skip
+    ax.set_xlabel("Performance index in 2028 (100 = bronze level)", fontsize=8, color=INK_2)
+    ax.legend(loc="upper left", fontsize=7, frameon=False, labelcolor=INK_2)
+    return _finish(fig, ax, "Where India's active athletes could be at LA 2028",
+                   f"Top {len(df)} projections; gradient boosting, range from its backtest misses",
+                   path)  # fmt: skip

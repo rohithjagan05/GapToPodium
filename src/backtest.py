@@ -28,6 +28,8 @@ CUTOFF = 2022  # fit on seasons up to here, predict the seasons after it
 MIN_HISTORY = 2  # an athlete-event needs this many seasons up to the cutoff to be predicted
 MAX_HORIZON = 4  # predict up to four seasons after the athlete's last known season
 INTERVAL_Z = 1.2816  # 80% prediction interval (normal quantile)
+LOW_Q, HIGH_Q = 0.1, 0.9  # boosting's 80% range: the 10th and 90th percentile of its past misses
+CALIBRATION_GAP = 4  # boosting's range is learned from an inner backtest ending this many seasons earlier
 TRACKING_URI = f"sqlite:///{(PROJECT_ROOT / 'mlflow.db').as_posix()}"  # local, not committed
 ARTIFACT_DIR = PROJECT_ROOT / "mlartifacts"  # files logged with each run, not committed
 EXPERIMENT = "phase4-backtest"
@@ -124,14 +126,51 @@ def predict_fixed_curve(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
     return smf.ols(FORMULA, train).fit().predict(test).to_numpy()
 
 
-def predict_boosting(train: pd.DataFrame, test: pd.DataFrame, seed: int = 0) -> np.ndarray:
-    """Gradient boosting on the athlete's history; fixed seed so runs are repeatable."""
+def fit_boosting(pairs: pd.DataFrame, seed: int = 0):
+    """Gradient boosting on training pairs: default settings and a fixed seed (nothing is tuned)."""
     from sklearn.ensemble import HistGradientBoostingRegressor
 
-    pairs = training_pairs(train)
     model = HistGradientBoostingRegressor(random_state=seed, categorical_features=["family_code"])
-    model.fit(pairs[FEATURES], pairs["perf_index"])
-    return model.predict(test[FEATURES])
+    return model.fit(pairs[FEATURES], pairs["perf_index"])
+
+
+def boosting_misses(frame: pd.DataFrame, cutoff: int, seed: int = 0) -> pd.DataFrame:
+    """How far boosting's predictions missed (actual minus predicted) for seasons after cutoff.
+
+    The model is fitted only on seasons up to cutoff, exactly as in the backtest.
+    """
+    train, test = split_by_season(frame, cutoff)
+    predicted = fit_boosting(training_pairs(train), seed).predict(test[FEATURES])
+    return pd.DataFrame({"horizon": test["horizon"], "miss": test["perf_index"] - predicted})
+
+
+def range_offsets(misses: pd.DataFrame, min_count: int = 20) -> pd.DataFrame:
+    """For each horizon: the 10th and 90th percentile of past misses (split conformal ranges).
+
+    Adding them to a new prediction gives an 80% range whose width is learned from real misses
+    rather than assumed. A horizon with fewer than min_count misses uses all horizons together.
+    """
+    rows = []
+    for h in range(1, MAX_HORIZON + 1):
+        m = misses.loc[misses["horizon"] == h, "miss"]
+        m = m if len(m) >= min_count else misses["miss"]
+        rows.append({"horizon": h, "low": m.quantile(LOW_Q), "high": m.quantile(HIGH_Q)})
+    return pd.DataFrame(rows).set_index("horizon")
+
+
+def predict_boosting(train: pd.DataFrame, test: pd.DataFrame, cutoff: int = CUTOFF,
+                     seed: int = 0) -> pd.DataFrame:  # fmt: skip
+    """Boosting's prediction plus an 80% range.
+
+    The range comes from boosting's own misses in an earlier backtest run inside the training
+    seasons (fit to cutoff - CALIBRATION_GAP, predict up to cutoff), so no test season is used.
+    """
+    point = fit_boosting(training_pairs(train), seed).predict(test[FEATURES])
+    offsets = range_offsets(boosting_misses(train, cutoff - CALIBRATION_GAP, seed))
+    h = test["horizon"].to_numpy()
+    return pd.DataFrame({"boosting": point,
+                         "boosting_low": point + offsets.loc[h, "low"].to_numpy(),
+                         "boosting_high": point + offsets.loc[h, "high"].to_numpy()})  # fmt: skip
 
 
 def predict_mixed_model(train: pd.DataFrame, test: pd.DataFrame) -> pd.DataFrame:
@@ -161,7 +200,9 @@ def run_backtest(frame: pd.DataFrame, cutoff: int = CUTOFF) -> pd.DataFrame:
     out["last_season_pred"] = predict_last_season(train, test)
     out["age_trend_pred"] = predict_age_trend(train, test)
     out["fixed_curve_pred"] = predict_fixed_curve(train, test)
-    out["boosting_pred"] = predict_boosting(train, test)
+    boost = predict_boosting(train, test, cutoff)
+    out["boosting_pred"] = boost["boosting"].to_numpy()
+    out["boosting_low"], out["boosting_high"] = boost["boosting_low"].to_numpy(), boost["boosting_high"].to_numpy()
     mixed = predict_mixed_model(train, test)
     out["mixed_model_pred"] = mixed["mixed_model"].to_numpy()
     out["mixed_low"], out["mixed_high"] = mixed["mixed_low"].to_numpy(), mixed["mixed_high"].to_numpy()
@@ -185,9 +226,40 @@ def score(predictions: pd.DataFrame) -> pd.DataFrame:
             row[f"mae_{group}"] = err[predictions["india"] == flag].abs().mean()
         rows.append(row)
     out = pd.DataFrame(rows)
-    inside = predictions["perf_index"].between(predictions["mixed_low"], predictions["mixed_high"])
-    out["coverage_80"] = np.where(out["contender"] == "mixed_model", inside.mean(), np.nan)
+    out["coverage_80"] = [coverage(predictions, *RANGES[name]) if name in RANGES else np.nan
+                          for name in out["contender"]]  # fmt: skip
     return out
+
+
+RANGES = {"mixed_model": ("mixed_low", "mixed_high"), "boosting": ("boosting_low", "boosting_high")}
+
+
+def coverage(predictions: pd.DataFrame, low: str, high: str) -> float:
+    """Share of real values inside the 80% range; NaN if this contender gave no range."""
+    if low not in predictions or high not in predictions:
+        return np.nan
+    return float(predictions["perf_index"].between(predictions[low], predictions[high]).mean())
+
+
+def mae_difference(predictions: pd.DataFrame, a: str, b: str, india: int | None = None,
+                   n_boot: int = 2000, seed: int = 0) -> dict:  # fmt: skip
+    """Is contender a really worse than b? MAE(a) - MAE(b) with a 95% bootstrap interval.
+
+    Resamples whole athlete-events (not single seasons), because one athlete's seasons are not
+    independent. A positive difference means a misses by more than b; if the interval excludes 0,
+    the gap is not luck. india=1 or 0 restricts to Indian athletes or finalists.
+    """
+    p = predictions if india is None else predictions[predictions["india"] == india]
+    err_a = (p[f"{a}_pred"] - p["perf_index"]).abs().groupby(p["unit"]).sum()
+    err_b = (p[f"{b}_pred"] - p["perf_index"]).abs().groupby(p["unit"]).sum()
+    n = p.groupby("unit").size()
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(n), size=(n_boot, len(n)))
+    sa, sb, sn = err_a.to_numpy(), err_b.to_numpy(), n.to_numpy()
+    diffs = (sa[idx].sum(1) - sb[idx].sum(1)) / sn[idx].sum(1)
+    return {"a": a, "b": b, "units": len(n), "seasons": int(sn.sum()),
+            "difference": float((sa.sum() - sb.sum()) / sn.sum()),
+            "ci_low": float(np.percentile(diffs, 2.5)), "ci_high": float(np.percentile(diffs, 97.5))}  # fmt: skip
 
 
 def log_to_mlflow(predictions: pd.DataFrame, scores: pd.DataFrame, params: dict,
@@ -211,8 +283,7 @@ def log_to_mlflow(predictions: pd.DataFrame, scores: pd.DataFrame, params: dict,
         with mlflow.start_run(experiment_id=experiment_id, run_name=name) as run:
             mlflow.log_params({**params, "contender": name})
             mlflow.log_metrics({k: float(v) for k, v in row.items() if pd.notna(v)})
-            cols = keep + [f"{name}_pred"] + (["mixed_low", "mixed_high"]
-                                              if name == "mixed_model" else [])  # fmt: skip
+            cols = keep + [f"{name}_pred"] + list(RANGES.get(name, ()))
             with tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / f"{name}_predictions.csv"
                 predictions[cols].to_csv(path, index=False)
