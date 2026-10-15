@@ -1,0 +1,14 @@
+# Keep the build context small: the image copies only what the Dockerfile lists.
+.venv/
+.git/
+data/
+dbt/
+notebooks/
+docs/
+tests/
+scripts/
+mlartifacts/
+mlruns/
+mlflow.db
+**/__pycache__/
+.env

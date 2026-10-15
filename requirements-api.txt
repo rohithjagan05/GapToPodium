@@ -1,0 +1,6 @@
+# Only what the deployed API needs (the full project list is requirements.txt).
+# Versions must match requirements.txt; tests/test_docker.py checks this.
+fastapi==0.143.2
+uvicorn==0.54.0
+pandas==3.0.6
+python-dotenv==1.2.4
