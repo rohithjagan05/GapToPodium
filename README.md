@@ -2,9 +2,9 @@
 
 How far are India's best athletes from an Olympic medal in each athletics event, and which young athletes are on track to win one?
 
-This project collects 25 years of Olympic and World Championship results, the world's top 100 in every Olympic event for five seasons, and the careers of 73 Indian athletes and 307 Olympic finalists. It models them in a cloud warehouse, measures the gap to the podium in every event, tests why the gap exists, and models athletes' careers to find when the gap appears and where India's athletes could be at the 2028 Olympics. Later phases add an API, a dashboard and a funding case.
+This project collects 25 years of Olympic and World Championship results, the world's top 100 in every Olympic event for five seasons, and the careers of 73 Indian athletes and 307 Olympic finalists. It models them in a cloud warehouse, measures the gap to the podium in every event, tests why the gap exists, and models athletes' careers to find when the gap appears and where India's athletes could be at the 2028 Olympics. The results are served by a live API, and later phases add a public website, a Power BI dashboard and a funding case.
 
-> Status (October 2026): Phases 0 to 4 complete. Phase 5 (production) is next. See the [roadmap](#roadmap).
+> Status (October 2026): Phases 0 to 5 complete. **Live API: [gaptopodium.onrender.com](https://gaptopodium.onrender.com)**. Phase 6 (website and dashboard) is next. See the [roadmap](#roadmap).
 
 ## First results
 
@@ -122,6 +122,28 @@ Gradient boosting, trained on every season, projects 44 active Indian athlete-ev
 
 **Caveats.** The finalists group is selected on reaching the 2024 final, so their 2023-24 seasons were good by selection; every contender faced the same bias, so the comparison is fair, but all models lean pessimistic. Age is season minus birth year. Projections cover athletes in our seed list, not every Indian athlete.
 
+## Use the results: live API (Phase 5)
+
+**[gaptopodium.onrender.com/docs](https://gaptopodium.onrender.com/docs)** has interactive documentation: pick an endpoint, press *Try it out*, and get real data back. (Free hosting sleeps when idle, so the first request after a pause can take up to a minute.)
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /findings` | Headline numbers: the gap at 18 with its interval, each model's backtest error, range coverage |
+| `GET /events` (`?tactical=true`) | India's best mark, gap to bronze and world rank in every Olympic event |
+| `GET /events/{event_key}` | One event, e.g. `/events/jt_m` for the men's javelin |
+| `GET /projections` (`?event=`, `?athlete=`, `?reaches_bronze=`, `?limit=`) | 2028 projections with 80% ranges, best first |
+| `GET /health` | Status and when the results were generated |
+
+Example: [`/projections?reaches_bronze=true`](https://gaptopodium.onrender.com/projections?reaches_bronze=true) lists the athlete-events whose 2028 range reaches bronze level.
+
+**How it is built:**
+
+- **FastAPI** with typed response models, so inputs are validated (`limit=0` gets a clear 422) and the docs page is generated from the code.
+- **Serves precomputed results** from small files in [`serving/`](serving/) instead of querying BigQuery or refitting models per request: fast, free to host, and the numbers change only when the pipeline is rerun and committed. The export writes a fixed set of columns, so the API's contract cannot change by accident.
+- **Docker:** a slim Python 3.11 image with only the four packages the API needs, running as a non-root user on the port the host provides. Tests check the Dockerfile copies every module the API imports and that its package versions match the project's.
+- **Deployed on Render** straight from this repository: every push rebuilds and redeploys.
+- **Prefect** runs the whole pipeline as one flow, `validate → load BigQuery → dbt build → publish`, with scraping first if asked. Each step is logged and timed, retried on failure, and a failed step stops everything after it, so nothing is loaded if validation fails.
+
 ## How it works
 
 ```mermaid
@@ -138,12 +160,15 @@ flowchart LR
     M --> N[Notebook + tested analysis code<br/>bootstrap, hypothesis tests, charts]
     N --> T[Trajectory model and backtest<br/>mixed-effects, boosting, MLflow]
     T --> P[2028 projections]
+    P --> X[serving/ files]
+    X --> API[FastAPI in Docker<br/>on Render]
 ```
 
 - **Collection (Python):** three scrapers share one fetcher that caches every page, waits between requests to each site, backs off when a site refuses (HTTP 429 or 202), and only ever caches real pages.
 - **Validation:** one command checks all sources together: medallists have marks, gold beats bronze, no mark is better than the world record, no duplicate athletes, every athlete is Indian. It stops the pipeline if anything fails.
 - **Warehouse (BigQuery + dbt):** raw tables load into BigQuery; dbt builds five staging views and three marts, with 40 data tests and a lineage graph.
 - **Analysis (Python):** statistics live in tested functions (`src/analysis.py`, `src/charts.py`); the notebook calls them and tells the story.
+- **Orchestration (Prefect):** `flows/pipeline.py` runs every step above in order as one flow.
 - **Modelling (Python):** career curves (`src/trajectory.py`, statsmodels), a time-based backtest of five models logged to MLflow (`src/backtest.py`, scikit-learn) and 2028 projections (`src/projection.py`).
 
 ![dbt lineage graph: raw sources to staging views to marts](docs/images/lineage.png)
@@ -169,7 +194,7 @@ make setup
 cp .env.example .env               # then set CONTACT_EMAIL (sent in the scrapers' User-Agent)
 
 # 2. Check everything offline
-make check                         # ruff + 302 tests, no internet needed
+make check                         # ruff + 319 tests, no internet needed
 
 # 3. Collect and validate the data (Phase 1)
 make phase1                        # scrapers, then validation; cached pages make reruns fast
@@ -187,14 +212,19 @@ jupyter notebook notebooks/phase3_analysis.ipynb
 # 6. Career model, backtest and projections (Phase 4)
 jupyter notebook notebooks/phase4_trajectories.ipynb
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # compare backtest runs at http://127.0.0.1:5000
+
+# 7. Production (Phase 5)
+make pipeline                      # Prefect flow: validate, load, dbt build, publish serving/ files
+uvicorn src.api:app --reload       # the API locally at http://127.0.0.1:8000/docs
 ```
 
 Run `make help` for every command.
 
 ## Data quality and testing
 
-- **302 offline Python tests**, built on trimmed copies of real pages, so every tricky case found in the wild stays fixed: a DNF finalist, an annulled gold, a shared bronze with two different marks, an indoor mark filed as outdoor.
+- **319 offline Python tests**, built on trimmed copies of real pages, so every tricky case found in the wild stays fixed: a DNF finalist, an annulled gold, a shared bronze with two different marks, an indoor mark filed as outdoor.
 - **Models tested on simulated careers with known answers:** the mixed model must recover a planted gap and a planted slower improvement; the backtest must never leak a future season; prediction ranges must hold about 80% of real values.
+- **API and deployment tested offline:** every endpoint, filter, missing value and bad input; the Docker setup is checked against the code without needing Docker.
 - **40 dbt data tests** on the warehouse, including one that checks the gap mart has exactly one row for every event at the latest Games.
 - **Cross-source validation** before every load.
 - **One parser of record:** marks are converted to numbers once, by a tested Python function, and loaded beside the original text.
@@ -211,7 +241,10 @@ A few things the checks caught along the way:
 ## Project structure
 
 ```
-src/            fetcher, mark parser, event maps, scrapers, validation, BigQuery loader, analysis, charts
+src/            fetcher, mark parser, event maps, scrapers, validation, BigQuery loader, analysis,
+                charts, trajectory model, backtest, projections, publish script, API
+flows/          Prefect pipeline
+serving/        results the API serves (regenerated by `make publish`)
 dbt/            dbt project: staging views, marts, tests, BigQuery profile
 tests/          offline Python tests and real-page fixtures
 scripts/        exploration helpers used to inspect each source before writing parsers
@@ -229,8 +262,8 @@ docs/           cross-check sheet and chart images
 | 2 | Warehouse and transformation: BigQuery, dbt, gap-to-podium marts | Done |
 | 3 | Statistics: bootstrap intervals, two hypothesis tests, fair comparisons for tactical events | Done |
 | 4 | Career model, backtest and 2028 projections (mixed-effects, gradient boosting, MLflow) | Done |
-| 5 | Production: FastAPI, Docker, Prefect, Cloud Run | Next |
-| 6 | Power BI dashboard | Planned |
+| 5 | Production: FastAPI, Docker, Render, Prefect | Done |
+| 6 | Public website (Streamlit) and Power BI dashboard | Next |
 | 7 | Business case: funding model and stakeholder deck | Planned |
 
 ## License

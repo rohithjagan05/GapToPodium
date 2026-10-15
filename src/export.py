@@ -22,11 +22,13 @@ PROJECTION_COLUMNS = ["athlete", "event", "last_season", "last_index", "target_a
 
 
 def export_serving(gaps: pd.DataFrame, projections: pd.DataFrame, findings: dict,
-                   out_dir: Path = SERVING_DIR, now: datetime | None = None) -> list[Path]:  # fmt: skip
+                   out_dir: Path = SERVING_DIR, now: datetime | None = None,
+                   extra: dict[str, pd.DataFrame] | None = None) -> list[Path]:  # fmt: skip
     """Write gaps.csv, projections.csv and findings.json; findings gets a generated_at stamp.
 
     Only the listed columns are written, so the API's contract does not change by accident when
-    a notebook table gains a column.
+    a notebook table gains a column. extra holds more tables for the dashboards (for example
+    {"curves": ..., "backtest": ...}); each is written as <name>.csv.
     """
     missing = [c for c in GAP_COLUMNS if c not in gaps] + [
         c for c in PROJECTION_COLUMNS if c not in projections]
@@ -38,4 +40,7 @@ def export_serving(gaps: pd.DataFrame, projections: pd.DataFrame, findings: dict
     gaps[GAP_COLUMNS].sort_values("event_key").to_csv(paths[0], index=False)
     projections[PROJECTION_COLUMNS].round(2).to_csv(paths[1], index=False)
     paths[2].write_text(json.dumps({"generated_at": stamp, **findings}, indent=2) + "\n")
+    for name, table in (extra or {}).items():
+        paths.append(out_dir / f"{name}.csv")
+        table.round(3).to_csv(paths[-1], index=False)
     return paths
