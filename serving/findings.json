@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-10-15T16:01:43Z",
+  "performance_index": "mark as % of Olympic bronze level (medallists' season bests); 100 = bronze",
+  "gap_at_18_points": 4.86,
+  "gap_at_18_ci_95": [
+    2.97,
+    6.75
+  ],
+  "athletes": {
+    "india": 72,
+    "finalists_2024": 305
+  },
+  "projection_model": "gradient boosting",
+  "backtest_mae_points": {
+    "last_season": 2.62,
+    "age_trend": 2.34,
+    "fixed_curve": 2.96,
+    "boosting": 1.96,
+    "mixed_model": 2.39
+  },
+  "projection_range_coverage_80": 0.82
+}

@@ -29,3 +29,8 @@ ruff==0.16.10
 # Phase 4: modelling and experiment tracking
 scikit-learn==1.9.1
 mlflow==3.17.1
+
+# Phase 5: serving
+fastapi==0.143.2
+uvicorn==0.54.0
+httpx==0.28.1

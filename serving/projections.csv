@@ -1,0 +1,45 @@
+athlete,event,last_season,last_index,target_age,projected,low,high,range_reaches_bronze,beyond_trained_ages
+Neeraj Chopra,jt_m,2026,100.37,31,100.47,99.39,103.83,True,True
+Gulveer Singh,5000m_m,2026,100.2,30,99.78,98.7,103.14,True,False
+Gulveer Singh,10000m_m,2026,99.19,30,98.99,97.91,102.35,True,False
+Rohit Yadav,jt_m,2026,99.95,27,98.92,97.84,102.28,True,False
+Murali Sreeshankar,lj_m,2026,100.24,29,98.79,97.71,102.15,True,False
+Pooja Singh,hj_w,2026,97.31,21,97.61,96.53,100.97,True,False
+Gulveer Singh,1500m_m,2026,97.07,30,97.4,96.32,100.76,True,False
+Vishal Thennarasu,400m_m,2026,97.47,25,97.39,96.31,100.75,True,False
+Animesh Kujur,100m_m,2026,97.34,25,96.85,95.77,100.21,True,False
+Yash Vir Singh,jt_m,2026,97.72,27,96.78,95.7,100.14,True,False
+Vikash Singh,20kmw_m,2025,95.94,32,96.65,93.6,100.02,True,True
+Gurindervir Singh,100m_m,2026,97.82,28,96.62,95.54,99.98,False,False
+Mohammed Afsal Pulikkalakath,800m_m,2026,96.53,32,96.6,95.52,99.96,False,True
+Ancy Sojan,lj_w,2026,97.91,27,96.47,95.39,99.83,False,False
+Akshdeep Singh,20kmw_m,2025,94.64,29,96.38,93.33,99.75,False,False
+Abdulla Aboobacker,tj_m,2026,95.64,32,96.34,95.26,99.7,False,True
+Parul Chaudhary,3000msc_w,2025,98.0,33,96.34,93.29,99.71,False,True
+Paramjeet Singh Bisht,20kmw_m,2025,96.72,26,96.34,93.28,99.7,False,False
+Praveen Chithravel,tj_m,2026,97.06,27,96.31,95.23,99.67,False,False
+Animesh Kujur,200m_m,2026,96.55,25,95.98,94.9,99.34,False,False
+Parul Chaudhary,5000m_w,2025,94.85,33,95.76,92.71,99.13,False,True
+Jyothi Yarraji,100mh_w,2026,97.09,29,95.69,94.61,99.05,False,False
+Seema Kumari,10000m_w,2026,93.93,27,95.6,94.52,98.96,False,False
+Sarvesh Anil Kushare,hj_m,2025,96.61,33,95.43,92.38,98.8,False,True
+Harita Bhadra,200m_w,2026,94.6,25,95.15,94.07,98.51,False,False
+Vithya Ramraj,400mh_w,2026,95.96,30,94.96,93.88,98.32,False,False
+Abinaya Rajarajan,100m_w,2026,95.55,22,94.96,93.88,98.32,False,False
+Harita Bhadra,100m_w,2026,96.32,25,94.85,93.77,98.21,False,False
+Prachi Choudhary,400m_w,2026,93.96,32,94.66,93.58,98.02,False,True
+Jabir Madari Palliyalil,400mh_m,2026,94.36,32,94.64,93.56,98.0,False,True
+Ankita Dhyani,5000m_w,2025,90.82,26,94.36,91.31,97.73,False,False
+Ravina,20kmw_w,2025,91.31,31,94.28,91.23,97.65,False,True
+Tanya Chaudhary,ht_w,2026,90.95,25,93.98,92.9,97.34,False,False
+Jeswin Aldrin,lj_m,2026,92.46,27,93.93,92.85,97.29,False,False
+Asha,tj_w,2026,94.11,29,93.79,92.71,97.15,False,False
+Tejaswin Shankar,dec_m,2026,92.87,30,93.28,92.2,96.64,False,False
+Pahal Kiran,400m_w,2026,93.54,28,93.15,92.07,96.51,False,False
+Seema,dt_w,2026,89.16,29,92.62,91.54,95.98,False,False
+Rahul Rohilla,20kmw_m,2025,80.11,32,91.58,88.53,94.95,False,True
+Kishore Jena,jt_m,2025,89.6,33,91.01,87.96,94.38,False,True
+Anushka Yadav,ht_w,2026,89.18,20,90.73,89.65,94.09,False,False
+Baranica Elangoan,pv_w,2025,84.54,31,90.02,86.97,93.39,False,True
+Shivpal Singh,jt_m,2025,87.78,33,89.59,86.54,92.96,False,True
+Pooja,hep_w,2026,80.27,25,83.83,82.75,87.19,False,False

@@ -1,0 +1,43 @@
+event_key,india_best_athlete,india_best_mark_raw,gap_pct,india_world_rank,tactical_event
+10000m_m,Gulveer SINGH,27:00.22,-0.67,12,True
+10000m_w,SEEMA,32:02.43,6.24,53,True
+100m_m,Gurindervir SINGH,10.09,2.23,106,False
+100m_w,Bhadra HARITA,11.22,3.44,153,False
+100mh_w,Jyothi YARRAJI,12.85,2.75,68,False
+110mh_m,,,,,False
+1500m_m,Gulveer SINGH,3:36.58,0.41,188,True
+1500m_w,ANKITA,4:06.75,2.96,132,True
+200m_m,Animesh KUJUR,20.32,2.35,77,False
+200m_w,Bhadra HARITA,23.14,4.83,224,False
+20kmw_m,Paramjeet Singh BISHT,1:22:02,2.43,142,True
+20kmw_w,RAVINA,1:35:59,8.63,145,True
+3000msc_m,Avinash Mukund SABLE,8:20.92,2.27,69,True
+3000msc_w,Parul CHAUDHARY,9:08.67,1.1,11,True
+400m_m,Vishal THENNARASU KAYALVIZHI,44.98,2.4,79,False
+400m_w,Vithya RAMRAJ,51.96,5.12,174,False
+400mh_m,Jabir MADARI PALLIYALIL,49.93,5.56,171,False
+400mh_w,Vithya RAMRAJ,54.75,4.02,33,False
+5000m_m,Gulveer SINGH,13:03.93,-0.29,38,True
+5000m_w,Parul CHAUDHARY,15:04.26,3.42,77,True
+800m_m,Mohammed Afsal PULIKKALAKATH,1:44.93,1.6,101,True
+800m_w,ANKITA,2:07.87,9.25,,True
+dec_m,Tejaswin SHANKAR,8057,7.13,37,False
+dt_m,,,,,False
+dt_w,SEEMA,59.88,9.53,57,False
+hep_w,POOJA,5368,19.28,250,False
+hj_m,Sarvesh Anil KUSHARE,2.31,1.56,6,False
+hj_w,POOJA,1.93,2.2,18,False
+ht_m,Nirbhay CHOUDHARY,71.02,10.72,112,False
+ht_w,Tanya CHAUDHARY,68.35,8.58,85,False
+jt_m,Neeraj CHOPRA,90.23,-4.37,3,False
+jt_w,Annu RANI,62.59,2.73,18,False
+lj_m,SREESHANKAR,8.38,-1.21,9,False
+lj_w,Ancy SOJAN EDAPPILLY,6.88,1.76,12,False
+marathon_m,Sawan BARWAL,2:11:37,2.01,478,True
+marathon_w,,,,,True
+pv_m,,,,,False
+pv_w,Baranica ELANGOAN,4.10,15.17,336,False
+sp_m,Tajinderpal Singh TOOR,21.03,4.38,23,False
+sp_w,Manpreet KAUR,17.75,9.45,52,False
+tj_m,Praveen CHITHRAVEL,17.37,1.1,10,False
+tj_w,I. ASHA,13.89,5.89,54,False
