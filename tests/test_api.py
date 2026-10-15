@@ -79,3 +79,7 @@ def test_projections_are_sorted_and_filterable(client):
 
 def test_invalid_limit_is_rejected(client):
     assert client.get("/projections", params={"limit": 0}).status_code == 422
+
+def test_home_page_sends_visitors_to_the_docs(client):
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307 and response.headers["location"] == "/docs"

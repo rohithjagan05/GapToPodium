@@ -14,6 +14,7 @@ from pathlib import Path
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
+from fastapi.responses import RedirectResponse
 
 from src.export import SERVING_DIR
 
@@ -82,6 +83,10 @@ def _projection(row) -> Projection:
                       range_reaches_bronze=bool(row["range_reaches_bronze"]),
                       beyond_trained_ages=bool(row["beyond_trained_ages"]))  # fmt: skip
 
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    """The bare URL opens the interactive docs instead of a 404."""
+    return RedirectResponse(url="/docs")
 
 @app.get("/health")
 def health() -> dict:
