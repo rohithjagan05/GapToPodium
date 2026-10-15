@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 
 from src.export import SERVING_DIR
 
