@@ -22,6 +22,7 @@ help:
 	@echo "make finalists  build the 2024 Olympic finalists seed, then fetch their profiles"
 	@echo "make publish    rebuild the served results (model, backtest, projections) from BigQuery"
 	@echo "make pipeline   run validate -> load -> dbt -> publish as one Prefect flow"
+	@echo "make site       open the Streamlit site locally (site/app.py)"
 
 setup:
 	$(PYTHON) -m pip install -r requirements.txt
@@ -61,3 +62,5 @@ publish:
 	$(PYTHON) -m src.publish
 pipeline:
 	$(PYTHON) -m flows.pipeline
+site:
+  	streamlit run site/app.py
