@@ -1,6 +1,6 @@
-"""Phase 6a: reads the files in serving/ and shapes them for the Streamlit site.
+"""Phase 6: reads the files in serving/ and shapes them for the Streamlit site.
 
-Pure functions only: no Streamlit, no BigQuery, no model fitting. The site shows the numbers the
+Pure functions only: no Streamlit, no BigQuery, no model fitting, no network. The site shows the numbers the
 pipeline wrote (python -m src.publish), so the tests run offline on the committed files.
 """
 
@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import math
+import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -138,3 +140,133 @@ def check_findings(findings: dict, backtest: pd.DataFrame) -> list[str]:
     if not math.isclose(coverage, findings["projection_range_coverage_80"], abs_tol=1e-9):
         problems.append("80% range coverage differs between findings.json and backtest.csv")
     return problems  # fmt: skip
+
+
+def closest_to_bronze(projections: pd.DataFrame, n: int = 3) -> pd.DataFrame:
+    """The n athlete-events with the highest latest index (100 = bronze level), best first."""
+    p = projections.sort_values("last_index", ascending=False).head(n)
+    return pd.DataFrame({
+        "athlete": p["athlete"].fillna(""),
+        "event": p["event"].map(event_label),
+        "last_index": p["last_index"],
+        "projected": p["projected"],
+    }).reset_index(drop=True)  # fmt: skip
+
+
+def ladder_rows(gaps: pd.DataFrame) -> pd.DataFrame:
+    """Every event for the event ladder, with a kind that decides how the row is drawn.
+
+    kind: 'ahead' (gap below 0), 'behind', 'tactical' (show world rank, not the gap) or 'none'
+    (no Indian mark). Order: gap events from closest to furthest, then tactical by rank, then none.
+    """
+    tactical = gaps["tactical_event"].astype(bool)
+    has_mark = gaps["gap_pct"].notna()
+    kind = pd.Series("behind", index=gaps.index)
+    kind[has_mark & ~tactical & (gaps["gap_pct"] < 0)] = "ahead"
+    kind[has_mark & tactical] = "tactical"
+    kind[~has_mark] = "none"
+    rows = pd.DataFrame({
+        "event": gaps["event_key"].map(event_label),
+        "athlete": gaps["india_best_athlete"].fillna(""),
+        "mark": gaps["india_best_mark_raw"].fillna(""),
+        "gap": gaps["gap_pct"],
+        "rank": gaps["india_world_rank"].astype("Int64"),
+        "kind": kind,
+    })  # fmt: skip
+    order = rows["kind"].map({"ahead": 0, "behind": 0, "tactical": 1, "none": 2})
+    sort_value = rows["gap"].where(order == 0, rows["rank"].astype("Float64").where(order == 1))
+    rows = rows.assign(_o=order, _v=sort_value.astype(float))
+    return rows.sort_values(["_o", "_v", "event"]).drop(columns=["_o", "_v"]).reset_index(drop=True)
+
+
+def data_age_days(generated_at: str, now: datetime | None = None) -> float:
+    """Days since findings.json was written ('2026-10-15T18:13:42Z')."""
+    made = datetime.fromisoformat(generated_at)
+    now = now or datetime.now(UTC)
+    return (now - made).total_seconds() / 86400
+
+
+def freshness_status(age_days: float) -> str:
+    """ok under 14 days, warn up to 60, down after that."""
+    return "ok" if age_days < 14 else "warn" if age_days <= 60 else "down"
+
+
+def coverage_status(coverage: float, target: float = 0.8) -> str:
+    """How far the 80% ranges' real coverage is from 80%: ok within 5 points, warn within 10."""
+    miss = abs(coverage - target)
+    return "ok" if miss <= 0.05 + 1e-9 else "warn" if miss <= 0.10 + 1e-9 else "down"
+
+
+def api_status(seconds: float | None, answered: bool) -> str:
+    """ok if /health answered in under 1.5 s. A timeout is 'warn' (the free host is waking up);
+    an answer that is an error, or no connection at all, is 'down'."""
+    if answered:
+        return "ok" if seconds is not None and seconds < 1.5 else "warn"
+    return "warn" if seconds is None else "down"
+
+
+def roadmap(readme: str) -> list[dict]:
+    """The phase table from the README's roadmap: [{'phase': '0', 'what': ..., 'status': 'Done'}]."""
+    phases = []
+    for line in readme.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 3 and cells[0].isdigit():
+            phases.append({"phase": cells[0], "what": cells[1], "status": cells[2]})
+    return phases
+
+
+def api_version(api_source: str) -> str | None:
+    """The version string in src/api.py's FastAPI(...) call, read as text (no import needed)."""
+    found = re.search(r'version\s*=\s*"([^"]+)"', api_source)
+    return found.group(1) if found else None
+
+
+def head_commit(git_dir: Path) -> str | None:
+    """The checked-out commit, read from .git without running git. None if it can't be found."""
+    git_dir = Path(git_dir)
+    try:
+        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not head.startswith("ref: "):
+        return head or None
+    ref = head[5:]
+    loose = git_dir / ref
+    if loose.exists():
+        return loose.read_text(encoding="utf-8").strip()
+    packed = git_dir / "packed-refs"
+    if packed.exists():
+        for line in packed.read_text(encoding="utf-8").splitlines():
+            if line.endswith(" " + ref):
+                return line.split(" ", 1)[0]
+    return None
+
+
+# Commit authors that are tools, not people; left out of the site's contributor list.
+NOT_PEOPLE_EMAILS = {"noreply@anthropic.com"}
+
+
+def parse_shortlog(text: str) -> list[dict]:
+    """'git shortlog -sne' output -> [{'name', 'email', 'commits'}], most commits first.
+
+    AI assistants and bots ([bot] accounts) are left out: the list is for people.
+    """
+    people = []
+    for line in text.splitlines():
+        found = re.match(r"\s*(\d+)\s+(.+?)\s+<([^>]*)>", line)
+        if found and (found.group(3).lower() in NOT_PEOPLE_EMAILS or found.group(2).endswith("[bot]")):
+            continue
+        if found:
+            people.append({"name": found.group(2), "email": found.group(3),
+                           "commits": int(found.group(1))})
+    return sorted(people, key=lambda p: -p["commits"])
+
+
+def tidy_name(name: str) -> str:
+    """World Athletics writes surnames in capitals: 'Neeraj CHOPRA' -> 'Neeraj Chopra'."""
+    return " ".join(w.title() if w.isupper() and len(w) > 2 else w for w in name.split())
+
+
+def initials(name: str) -> str:
+    """'Rohith Jagan' -> 'RJ', 'Claude' -> 'C'."""
+    return "".join(part[0] for part in name.split()[:2]).upper()

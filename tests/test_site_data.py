@@ -157,9 +157,107 @@ def test_load_reads_a_different_folder(tmp_path, data):
 
 
 def test_the_page_draws_only_from_site_data():
-    tree = ast.parse((sd.SITE_ROOT / "site" / "app.py").read_text(encoding="utf-8"))
-    pairs = {(node.module, alias.name) for node in ast.walk(tree)
-             if isinstance(node, ast.ImportFrom) for alias in node.names}  # fmt: skip
-    assert ("src", "site_data") in pairs
-    assert not any(module == "src" and name != "site_data" for module, name in pairs)
-    assert not any(module and module.startswith("src.") for module, _ in pairs)
+    files = [sd.SITE_ROOT / "site" / "app.py", *(sd.SITE_ROOT / "site" / "ui").glob("*.py")]
+    for path in files:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        pairs = {(node.module, alias.name) for node in ast.walk(tree)
+                 if isinstance(node, ast.ImportFrom) for alias in node.names}  # fmt: skip
+        assert not any(module == "src" and name != "site_data" for module, name in pairs), path
+        assert not any(module and module.startswith("src.") for module, _ in pairs), path
+        assert not any(isinstance(node, ast.Import) and any(a.name.startswith("src") for a in node.names)
+                       for node in ast.walk(tree)), path  # fmt: skip
+
+
+# Phase 6b: the dashboard and Mission control helpers
+
+
+def test_closest_to_bronze_puts_the_highest_index_first(data):
+    top = sd.closest_to_bronze(data["projections"])
+    assert list(top["athlete"]) == ["Neeraj Chopra", "Murali Sreeshankar", "Gulveer Singh"]
+    assert top["last_index"].is_monotonic_decreasing
+    assert top.loc[0, "event"] == "Javelin (M)"
+
+
+def test_ladder_keeps_every_event_once(data):
+    rows = sd.ladder_rows(data["gaps"])
+    assert len(rows) == len(data["gaps"]) == 42
+    assert rows["event"].is_unique
+
+
+def test_ladder_kinds_and_order(data):
+    rows = sd.ladder_rows(data["gaps"])
+    kinds = list(rows["kind"])
+    assert kinds[:2] == ["ahead", "ahead"]  # javelin and long jump (men) are past bronze
+    assert set(rows.loc[rows["kind"] == "tactical", "event"]) >= {"5000 m (M)", "10,000 m (M)"}
+    first = {k: kinds.index(k) for k in ("behind", "tactical", "none")}
+    last_behind = max(i for i, k in enumerate(kinds) if k in ("ahead", "behind"))
+    assert last_behind < first["tactical"] < first["none"]
+    assert rows.loc[rows["kind"].isin(["ahead", "behind"]), "gap"].is_monotonic_increasing
+    tactical = rows[rows["kind"] == "tactical"]["rank"].dropna()
+    assert tactical.is_monotonic_increasing
+
+
+def test_a_tactical_event_ahead_of_bronze_is_still_tactical(data):
+    rows = sd.ladder_rows(data["gaps"]).set_index("event")
+    assert rows.loc["10,000 m (M)", "kind"] == "tactical"  # gap is -0.67, but read the rank
+
+
+def test_data_age_and_freshness():
+    from datetime import UTC, datetime
+    now = datetime(2026, 10, 16, 18, 13, 42, tzinfo=UTC)
+    assert sd.data_age_days("2026-10-15T18:13:42Z", now) == pytest.approx(1.0)
+    assert [sd.freshness_status(d) for d in (1, 13.9, 14, 60, 61)] == ["ok", "ok", "warn", "warn",
+                                                                      "down"]
+
+
+def test_coverage_status_bands():
+    assert sd.coverage_status(0.82) == "ok"
+    assert sd.coverage_status(0.85) == "ok"
+    assert sd.coverage_status(0.71) == "warn"
+    assert sd.coverage_status(0.65) == "down"
+
+
+def test_api_status():
+    assert sd.api_status(0.3, True) == "ok"
+    assert sd.api_status(2.0, True) == "warn"  # answered, but slow
+    assert sd.api_status(None, False) == "warn"  # timed out: the free host is waking up
+    assert sd.api_status(0.1, False) == "down"  # refused or an error
+
+
+def test_roadmap_reads_the_readme_table():
+    phases = sd.roadmap((sd.SITE_ROOT / "README.md").read_text(encoding="utf-8"))
+    assert [p["phase"] for p in phases] == [str(i) for i in range(8)]
+    assert phases[0]["status"] == "Done"
+    assert all(p["what"] and p["status"] for p in phases)
+
+
+def test_api_version_is_read_from_the_source():
+    assert sd.api_version((sd.SITE_ROOT / "src" / "api.py").read_text(encoding="utf-8")) == "1.0.0"
+    assert sd.api_version("no version here") is None
+
+
+def test_head_commit_reads_loose_and_packed_refs(tmp_path):
+    (tmp_path / "HEAD").write_text("ref: refs/heads/main\n")
+    assert sd.head_commit(tmp_path) is None
+    (tmp_path / "packed-refs").write_text("# pack-refs\nabc123 refs/heads/main\n")
+    assert sd.head_commit(tmp_path) == "abc123"
+    (tmp_path / "refs" / "heads").mkdir(parents=True)
+    (tmp_path / "refs" / "heads" / "main").write_text("def456\n")
+    assert sd.head_commit(tmp_path) == "def456"
+    (tmp_path / "HEAD").write_text("0123abcd\n")  # detached
+    assert sd.head_commit(tmp_path) == "0123abcd"
+    assert sd.head_commit(tmp_path / "missing") is None
+
+
+def test_parse_shortlog_and_names():
+    people = sd.parse_shortlog("     1\tRohith Jagan <r@example.com>\n     4\tAda L <a@example.com>\n")
+    assert [p["name"] for p in people] == ["Ada L", "Rohith Jagan"]
+    assert people[0]["commits"] == 4
+    assert sd.initials("Rohith Jagan") == "RJ"
+    tools = sd.parse_shortlog("     3\tClaude <noreply@anthropic.com>\n     2\tdependabot[bot] <x@y.z>\n"
+                             "     1\tRohith Jagan <r@example.com>\n")
+    assert [p["name"] for p in tools] == ["Rohith Jagan"]
+    assert sd.initials("Claude") == "C"
+    assert sd.tidy_name("Neeraj CHOPRA") == "Neeraj Chopra"
+    assert sd.tidy_name("I. ASHA") == "I. Asha"
+    assert sd.tidy_name("POOJA") == "Pooja"

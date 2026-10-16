@@ -1,8 +1,8 @@
-# Phase 6a: the Streamlit site (site/app.py).
+# Phase 6: the Streamlit site (site/app.py and site/ui/).
 # Local install, from the project folder with the venv active:
 #   python -m pip install -r requirements.txt -r site/requirements.txt
 # Streamlit Community Cloud also reads this file, so it installs only what the site needs
 # (the root requirements.txt is the whole pipeline).
-# Streamlit is not pinned yet. After installing, run `python -m pip show streamlit`, then pin
-# the version it reports here (streamlit==<version>) so the site behaves the same later.
-streamlit>=1.40
+# Pinned to the versions the site was built and tested with (2026-10-16).
+streamlit==1.66.0
+altair==6.3.0

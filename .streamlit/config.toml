@@ -1,0 +1,12 @@
+# Streamlit theme for the site (Phase 6b, "Golden Hour"). Read from the folder you start Streamlit in (the repo root).
+# The colours match the tokens at the top of site/ui/theme.py; that file's CSS does the rest.
+[theme]
+base = "dark"
+primaryColor = "#ff6b4a"
+backgroundColor = "#120d14"
+secondaryBackgroundColor = "#1a131d"
+textColor = "#fbf3ea"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
