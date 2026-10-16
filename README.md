@@ -4,7 +4,7 @@ How far are India's best athletes from an Olympic medal in each athletics event,
 
 This project collects 25 years of Olympic and World Championship results, the world's top 100 in every Olympic event for five seasons, and the careers of 73 Indian athletes and 307 Olympic finalists. It models them in a cloud warehouse, measures the gap to the podium in every event, tests why the gap exists, and models athletes' careers to find when the gap appears and where India's athletes could be at the 2028 Olympics. The results are served by a live API and a public website; later phases add a Power BI dashboard and a funding case.
 
-> Status (October 2026): Phases 0 to 5 complete, and the Phase 6 website is live. **Website: [\[APP_URL\]](https://gaptopodium-ey5d4eiebhhyrpxxdruuqz.streamlit.app/)(APP_URL)**. **Live API: [gaptopodium.onrender.com](https://gaptopodium.onrender.com)**. The Power BI dashboard is next. See the [roadmap](#roadmap).
+> Status (October 2026): Phases 0 to 5 complete, and the Phase 6 website is live. **Website: [open the live site](https://gaptopodium-ey5d4eiebhhyrpxxdruuqz.streamlit.app/)**. **Live API: [gaptopodium.onrender.com](https://gaptopodium.onrender.com)**. The Power BI dashboard is next. See the [roadmap](#roadmap).
 
 ## First results
 
@@ -146,7 +146,7 @@ Example: [`/projections?reaches_bronze=true`](https://gaptopodium.onrender.com/p
 
 ## Explore the results: website (Phase 6)
 
-**[\[APP_URL\]](https://gaptopodium-ey5d4eiebhhyrpxxdruuqz.streamlit.app/)(APP_URL)** shows every result in one page, built with Streamlit from the same [`serving/`](serving/) files as the API.
+**[The live website](https://gaptopodium-ey5d4eiebhhyrpxxdruuqz.streamlit.app/)** shows every result in one page, built with Streamlit from the same [`serving/`](serving/) files as the API.
 
 - **Dashboard:** the gap at 18 with its 95% range, drawn as a two-lane finish line; the athletes closest to bronze; career curves for India and the 2024 finalists (hover any age); all 42 events ranked against the bronze line, with world rank for tactical events; the five backtested models as a race; and 2028 projections with their 80% ranges, filterable by event, name and whether the range reaches bronze.
 - **Mission control:** why the project exists, live checks (API health, age of the results, whether the result files agree, range coverage), the deployed commit and API version, and the phase timeline read from this README.
