@@ -134,6 +134,7 @@ html, body, .stApp { background: var(--tartan-900) !important; }
   color: var(--ink) !important; background: rgba(255,107,74,0.14) !important;
   box-shadow: inset 0 0 0 1.5px var(--sun-2) !important; }
 [data-testid="stButtonGroup"] button p { font: inherit !important; }
+.st-key-view { align-self: flex-end; }
 .st-key-view [data-testid="stButtonGroup"] { background: var(--tartan-800); border-radius: 999px;
   padding: 4px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.6); gap: 0; flex-wrap: nowrap; width: max-content; }
 .st-key-view [data-testid="stButtonGroup"] button { background: transparent !important; }
@@ -429,6 +430,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .ladder-scroll { max-height: none; mask-image: none; -webkit-mask-image: none; }
   .pipeline { overflow-x: auto; justify-content: flex-start; } .phase { min-width: 76px; }
   .header-right { justify-content: flex-start; }
+  .st-key-view { align-self: flex-start; }
   .track .bracket span { display: none; }
   .dock .status span.age { display: none; }
 }

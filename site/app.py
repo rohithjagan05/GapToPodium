@@ -45,20 +45,14 @@ def current_view() -> str:
     return wanted if wanted in VIEWS else "dashboard"
 
 
-def header(view: str, commit: str | None) -> str:
+def header(view: str) -> str:
     left, right = st.columns([3, 2], vertical_alignment="center")
     with left:
         st.markdown('<div class="wordmark"><span class="sun"></span>Gap to the podium</div>',
                     unsafe_allow_html=True)
     with right:
-        inner_l, inner_r = st.columns([3, 1.2], vertical_alignment="center")
-        with inner_l:
-            picked = st.segmented_control("View", list(VIEWS.values()), default=VIEWS[view], key="view",
-                                          label_visibility="collapsed")
-        with inner_r:
-            badge = (f'<a class="badge" href="{REPO}/commit/{commit}" target="_blank" rel="noopener">'
-                     f'build {commit[:7]}</a>') if commit else '<span class="badge">build local</span>'
-            st.markdown(f'<div class="header-right">{badge}</div>', unsafe_allow_html=True)
+        picked = st.segmented_control("View", list(VIEWS.values()), default=VIEWS[view], key="view",
+                                      label_visibility="collapsed")
     chosen = next((k for k, v in VIEWS.items() if v == picked), view)
     if chosen != st.query_params.get("view", "dashboard"):
         st.query_params["view"] = chosen
@@ -66,8 +60,7 @@ def header(view: str, commit: str | None) -> str:
 
 
 data = serving()
-info = diagnostics.build_info()
-view = header(current_view(), info["commit"])
+view = header(current_view())
 st.markdown('<div class="gap-s"></div>', unsafe_allow_html=True)
 
 problems = sd.check_findings(data["findings"], data["backtest"])
