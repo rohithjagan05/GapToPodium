@@ -349,7 +349,7 @@ def pipeline(phases: list[dict]) -> str:
     width = current / max(len(phases) - 1, 1)
     chips = []
     for p, s in zip(phases, statuses):
-        cls = "done" if s == "done" else "next" if s == "next" else "planned"
+        cls = "done" if s == "done" else "next" if "next" in s else "planned"
         short = p["what"].split(":")[0].split(",")[0]
         chips.append(f'<div class="phase {cls} has-tip" tabindex="0"><span class="chip-n">{escape(p["phase"])}</span>'
                      f'<span class="what">{escape(short)}</span>'

@@ -2,9 +2,9 @@
 
 How far are India's best athletes from an Olympic medal in each athletics event, and which young athletes are on track to win one?
 
-This project collects 25 years of Olympic and World Championship results, the world's top 100 in every Olympic event for five seasons, and the careers of 73 Indian athletes and 307 Olympic finalists. It models them in a cloud warehouse, measures the gap to the podium in every event, tests why the gap exists, and models athletes' careers to find when the gap appears and where India's athletes could be at the 2028 Olympics. The results are served by a live API, and later phases add a public website, a Power BI dashboard and a funding case.
+This project collects 25 years of Olympic and World Championship results, the world's top 100 in every Olympic event for five seasons, and the careers of 73 Indian athletes and 307 Olympic finalists. It models them in a cloud warehouse, measures the gap to the podium in every event, tests why the gap exists, and models athletes' careers to find when the gap appears and where India's athletes could be at the 2028 Olympics. The results are served by a live API and a public website; later phases add a Power BI dashboard and a funding case.
 
-> Status (October 2026): Phases 0 to 5 complete. **Live API: [gaptopodium.onrender.com](https://gaptopodium.onrender.com)**. Phase 6 (website and dashboard) is next. See the [roadmap](#roadmap).
+> Status (October 2026): Phases 0 to 5 complete, and the Phase 6 website is live. **Website: [\[APP_URL\]](https://gaptopodium-ey5d4eiebhhyrpxxdruuqz.streamlit.app/)(APP_URL)**. **Live API: [gaptopodium.onrender.com](https://gaptopodium.onrender.com)**. The Power BI dashboard is next. See the [roadmap](#roadmap).
 
 ## First results
 
@@ -144,6 +144,21 @@ Example: [`/projections?reaches_bronze=true`](https://gaptopodium.onrender.com/p
 - **Deployed on Render** straight from this repository: every push rebuilds and redeploys.
 - **Prefect** runs the whole pipeline as one flow, `validate → load BigQuery → dbt build → publish`, with scraping first if asked. Each step is logged and timed, retried on failure, and a failed step stops everything after it, so nothing is loaded if validation fails.
 
+## Explore the results: website (Phase 6)
+
+**[\[APP_URL\]](https://gaptopodium-ey5d4eiebhhyrpxxdruuqz.streamlit.app/)(APP_URL)** shows every result in one page, built with Streamlit from the same [`serving/`](serving/) files as the API.
+
+- **Dashboard:** the gap at 18 with its 95% range, drawn as a two-lane finish line; the athletes closest to bronze; career curves for India and the 2024 finalists (hover any age); all 42 events ranked against the bronze line, with world rank for tactical events; the five backtested models as a race; and 2028 projections with their 80% ranges, filterable by event, name and whether the range reaches bronze.
+- **Mission control:** why the project exists, live checks (API health, age of the results, whether the result files agree, range coverage), the deployed commit and API version, and the phase timeline read from this README.
+
+**How it is built:**
+
+- **Numbers in tested code, drawing kept separate:** every figure comes from pure functions in `src/site_data.py`, tested offline; the modules in `site/ui/` only lay out the page. A test checks the page imports nothing else from `src/`.
+- **Custom design system** ("Golden Hour", spec in [`docs/design/dashboard_concept.md`](docs/design/dashboard_concept.md)): colour tokens, frosted panels and HTML/CSS charts instead of stock widgets. The two data colours pass a colour-blindness and contrast check on the dark background.
+- **Fails soft:** the API check times out after 2.5 seconds and the page renders from its own files whatever the API's state, so a sleeping free-tier API never breaks the site.
+- **Page tests:** Streamlit's test runner loads both views and works every filter and toggle, offline.
+- **Deployed on Streamlit Community Cloud** from this repository (`site/app.py`, Python 3.11, versions pinned in `site/requirements.txt`): every push redeploys.
+
 ## How it works
 
 ```mermaid
@@ -162,6 +177,7 @@ flowchart LR
     T --> P[2028 projections]
     P --> X[serving/ files]
     X --> API[FastAPI in Docker<br/>on Render]
+    X --> WEB[Streamlit website<br/>on Community Cloud]
 ```
 
 - **Collection (Python):** three scrapers share one fetcher that caches every page, waits between requests to each site, backs off when a site refuses (HTTP 429 or 202), and only ever caches real pages.
@@ -169,6 +185,7 @@ flowchart LR
 - **Warehouse (BigQuery + dbt):** raw tables load into BigQuery; dbt builds five staging views and three marts, with 40 data tests and a lineage graph.
 - **Analysis (Python):** statistics live in tested functions (`src/analysis.py`, `src/charts.py`); the notebook calls them and tells the story.
 - **Orchestration (Prefect):** `flows/pipeline.py` runs every step above in order as one flow.
+- **Website (Streamlit):** `site/app.py` reads the `serving/` files through `src/site_data.py`.
 - **Modelling (Python):** career curves (`src/trajectory.py`, statsmodels), a time-based backtest of five models logged to MLflow (`src/backtest.py`, scikit-learn) and 2028 projections (`src/projection.py`).
 
 ![dbt lineage graph: raw sources to staging views to marts](docs/images/lineage.png)
@@ -194,7 +211,7 @@ make setup
 cp .env.example .env               # then set CONTACT_EMAIL (sent in the scrapers' User-Agent)
 
 # 2. Check everything offline
-make check                         # ruff + 319 tests, no internet needed
+make check                         # ruff + 362 tests, no internet needed
 
 # 3. Collect and validate the data (Phase 1)
 make phase1                        # scrapers, then validation; cached pages make reruns fast
@@ -216,15 +233,20 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # compare backtest runs at h
 # 7. Production (Phase 5)
 make pipeline                      # Prefect flow: validate, load, dbt build, publish serving/ files
 uvicorn src.api:app --reload       # the API locally at http://127.0.0.1:8000/docs
+
+# 8. Website (Phase 6)
+python -m pip install -r site/requirements.txt
+streamlit run site/app.py          # the site locally at http://localhost:8501
 ```
 
 Run `make help` for every command.
 
 ## Data quality and testing
 
-- **319 offline Python tests**, built on trimmed copies of real pages, so every tricky case found in the wild stays fixed: a DNF finalist, an annulled gold, a shared bronze with two different marks, an indoor mark filed as outdoor.
+- **362 offline Python tests**, built on trimmed copies of real pages, so every tricky case found in the wild stays fixed: a DNF finalist, an annulled gold, a shared bronze with two different marks, an indoor mark filed as outdoor.
 - **Models tested on simulated careers with known answers:** the mixed model must recover a planted gap and a planted slower improvement; the backtest must never leak a future season; prediction ranges must hold about 80% of real values.
 - **API and deployment tested offline:** every endpoint, filter, missing value and bad input; the Docker setup is checked against the code without needing Docker.
+- **Website tested offline:** both views run top to bottom, every filter changes what is shown, and the page still renders when the API cannot be reached.
 - **40 dbt data tests** on the warehouse, including one that checks the gap mart has exactly one row for every event at the latest Games.
 - **Cross-source validation** before every load.
 - **One parser of record:** marks are converted to numbers once, by a tested Python function, and loaded beside the original text.
@@ -244,13 +266,14 @@ A few things the checks caught along the way:
 src/            fetcher, mark parser, event maps, scrapers, validation, BigQuery loader, analysis,
                 charts, trajectory model, backtest, projections, publish script, API
 flows/          Prefect pipeline
-serving/        results the API serves (regenerated by `make publish`)
+serving/        results the API and website serve (regenerated by `make publish`)
+site/           Streamlit website: app.py, and ui/ for the theme, page pieces and views
 dbt/            dbt project: staging views, marts, tests, BigQuery profile
 tests/          offline Python tests and real-page fixtures
 scripts/        exploration helpers used to inspect each source before writing parsers
 notebooks/      Phase 3 analysis and Phase 4 trajectory notebooks
 data/seeds/     hand-verified Indian athletes; 2024 Olympic finalists matched from toplists
-docs/           cross-check sheet and chart images
+docs/           cross-check sheet, chart images and the website design spec
 ```
 
 ## Roadmap
@@ -263,7 +286,7 @@ docs/           cross-check sheet and chart images
 | 3 | Statistics: bootstrap intervals, two hypothesis tests, fair comparisons for tactical events | Done |
 | 4 | Career model, backtest and 2028 projections (mixed-effects, gradient boosting, MLflow) | Done |
 | 5 | Production: FastAPI, Docker, Render, Prefect | Done |
-| 6 | Public website (Streamlit) and Power BI dashboard | Next |
+| 6 | Public website (Streamlit) and Power BI dashboard | Website done, Power BI next |
 | 7 | Business case: funding model and stakeholder deck | Planned |
 
 ## License
